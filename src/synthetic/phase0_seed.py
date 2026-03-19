@@ -51,15 +51,16 @@ cascade_pathway_weight = 0.65  # stress → MH worsening → relapse
 involuntary_pathway_weight = 0.35  # external shock → direct relapse
 
 # ── Latent class assignment probabilities ─────────────────────────────
-# Base probability of being in the Remission class (vs Cycling)
-# Modified by severity, polysubstance status, MH burden at enrollment
+# SUD-type-specific base P(Remission), calibrated to clinical data
+p_remission_stimulant = 0.88
+p_remission_poly = 0.70
+
+# Legacy parameters (kept for reference, no longer used in assignment)
 latent_class_base_remission_prob = 0.42
-
-# Severity adjustment: Severe → -0.15, Moderate → -0.05, Mild → +0.10
 severity_remission_adj = {"Severe": -0.15, "Moderate": -0.05, "Mild": 0.10}
-
-# Polysubstance penalty
 polysubstance_remission_adj = -0.10
-
-# Per-MH-diagnosis penalty on remission probability
 mh_remission_penalty_per_dx = -0.04
+
+# MH burden penalty: subtract this per diagnosis above 3
+mh_excess_penalty_per_dx = 0.05
+mh_excess_threshold = 3

@@ -31,6 +31,9 @@ os.environ["SUD_RUN_TIMESTAMP"] = RUN_TIMESTAMP
 # Data mode
 DATA_MODE = os.environ.get("SUD_DATA_MODE", "synthetic")
 
+# Training mode — only train models if explicitly requested
+TRAIN_MODELS = os.environ.get("SUD_TRAIN_MODELS", "false").lower() == "true"
+
 
 def main():
     if DATA_MODE == "synthetic":
@@ -51,11 +54,19 @@ def main():
             PIPELINE_DIR / "build_splits.py",
         ]
 
+    # Append training steps if requested
+    if TRAIN_MODELS:
+        scripts.extend([
+            PIPELINE_DIR / "train_bayesian.py",
+            PIPELINE_DIR / "train_lstm.py",
+        ])
+
     print("=" * 70)
     print(f"SOBRIETY PREDICTION MODEL — FULL PIPELINE")
     print(f"Run timestamp: {RUN_TIMESTAMP}")
     print(f"Run ID: run_{RUN_TIMESTAMP}")
     print(f"Data mode: {DATA_MODE}")
+    print(f"Train models: {TRAIN_MODELS}")
     print("=" * 70)
 
     total_start = time.time()

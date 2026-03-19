@@ -25,8 +25,8 @@ from phase0_seed import (
     base_hazard_remission, base_hazard_cycling,
     mh_hazard_multipliers, tv_effects,
     stress_decay_rate, cascade_pathway_weight, involuntary_pathway_weight,
-    latent_class_base_remission_prob, severity_remission_adj,
-    polysubstance_remission_adj, mh_remission_penalty_per_dx,
+    p_remission_stimulant, p_remission_poly,
+    mh_excess_penalty_per_dx, mh_excess_threshold,
 )
 
 np.random.seed(config.SEED)
@@ -152,17 +152,19 @@ for cond, prev in med_conditions.items():
     med_data[cond] = (np.random.random(N_PATIENTS) < (prev + adj)).astype(int)
 
 # ── Latent class assignment (Phase 0 seed parameters) ─────────────────
-# P(Remission) = base + severity_adj + polysubstance_adj + mh_penalty
+# Base P(Remission) comes directly from seed, stratified by SUD type.
+# Only adjustment: small penalty for severe MH burden (>3 diagnoses).
 n_mh_per_patient = sum(mh_data[c] for c in mh_data)
-latent_p_remission = np.full(N_PATIENTS, latent_class_base_remission_prob)
+latent_p_remission = np.where(
+    sud_primary == "Stimulant Use Disorder",
+    p_remission_stimulant,
+    p_remission_poly,
+)
+# Subtract 0.05 per MH diagnosis above threshold of 3
+mh_excess = np.clip(n_mh_per_patient - mh_excess_threshold, 0, None)
+latent_p_remission = latent_p_remission - mh_excess * mh_excess_penalty_per_dx
+latent_p_remission = np.clip(latent_p_remission, 0.15, 0.95)
 
-for i in range(N_PATIENTS):
-    latent_p_remission[i] += severity_remission_adj[sud_severity[i]]
-    if sud_primary[i] == "Polysubstance Use Disorder":
-        latent_p_remission[i] += polysubstance_remission_adj
-    latent_p_remission[i] += n_mh_per_patient[i] * mh_remission_penalty_per_dx
-
-latent_p_remission = np.clip(latent_p_remission, 0.05, 0.85)
 latent_class = np.where(
     np.random.random(N_PATIENTS) < latent_p_remission, 0, 1
 )  # 0 = Remission, 1 = Cycling

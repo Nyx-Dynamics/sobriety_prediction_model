@@ -22,13 +22,13 @@ import matplotlib.pyplot as plt
 np.random.seed(42)
 
 # ── Load source data ──────────────────────────────────────────────────
-panel_q = pd.read_csv(config.PANEL_DIR / "patient_panel.csv")
+panel_q = pd.read_csv(config.RAW_DIR / "patient_panel.csv")
 static = pd.read_csv(config.STATIC_DIR / "sud_static.csv")
 
 panel_q["visit_date"] = pd.to_datetime(panel_q["visit_date"])
 
 # Get enrollment (entry) dates from the original static file
-static_full = pd.read_csv(config.STATIC_DIR / "patient_static.csv")
+static_full = pd.read_csv(config.RAW_DIR / "patient_static.csv")
 static_full["enrollment_date"] = pd.to_datetime(static_full["enrollment_date"])
 entry_dates = static_full.set_index("patient_id")["enrollment_date"]
 

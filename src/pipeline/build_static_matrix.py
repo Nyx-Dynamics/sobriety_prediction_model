@@ -17,9 +17,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# ── Load source data ──────────────────────────────────────────────────
-static = pd.read_csv(config.STATIC_DIR / "patient_static.csv")
-panel = pd.read_csv(config.PANEL_DIR / "patient_panel.csv")
+# ── Load source data (raw generator outputs) ─────────────────────────
+static = pd.read_csv(config.RAW_DIR / "patient_static.csv")
+panel = pd.read_csv(config.RAW_DIR / "patient_panel.csv")
 
 # ── 12. patient_id — SHA-256 hash (simulate PHI anonymization) ───────
 static["patient_id_hash"] = static["patient_id"].apply(
