@@ -9,7 +9,7 @@ with balance verification and scaler refit on final train split.
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config
 
 import numpy as np

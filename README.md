@@ -21,15 +21,15 @@ This project builds a survival-aware LSTM model to predict time-to-relapse among
 
 ## Data Pipeline
 
-The pipeline is fully reproducible from the `src/` scripts, run in order:
+The pipeline is fully reproducible via `python src/run_pipeline.py`:
 
 ```
-1. generate_synthetic_cohort.py   → Raw cohort (2,000 patients × 12 quarters)
-2. build_static_matrix.py         → Patient-level features (30 cols)
-3. build_panel.py                 → 30-day windowed longitudinal panel (48,162 rows × 19 cols)
-4. build_outcomes.py              → Survival outcomes + KM analysis + dip test
-5. build_lstm_tensors.py          → (N, T, F) = (2000, 34, 40) padded tensors
-6. build_splits.py                → Stratified 70/15/15 splits with balance verification
+1. synthetic/generate_synthetic_cohort.py  → Raw cohort with Phase 0 hazard model
+2. pipeline/build_static_matrix.py         → Patient-level features (30 cols)
+3. pipeline/build_panel.py                 → 30-day windowed longitudinal panel
+4. pipeline/build_outcomes.py              → Survival outcomes + KM analysis + dip test
+5. pipeline/build_lstm_tensors.py          → (N, T, F) padded tensors
+6. pipeline/build_splits.py               → Stratified 70/15/15 splits
 ```
 
 ### Feature Space (40 features)
@@ -52,22 +52,30 @@ Severity weights: none = 0, mild = 0.5, severe = 1.5. Clipped to [0, 10].
 
 ```
 sobriety_prediction_model/
-├── src/                          # Pipeline scripts (run in order)
-│   ├── generate_synthetic_cohort.py
-│   ├── build_static_matrix.py
-│   ├── build_panel.py
-│   ├── build_outcomes.py
-│   ├── build_lstm_tensors.py
-│   └── build_splits.py
-├── data/
-│   ├── raw/                      # Full merged cohort CSV
-│   └── processed/
-│       ├── static/               # sud_static.csv (patient-level)
+├── src/
+│   ├── config.py                 # Shared config (paths, timestamps, DATA_MODE)
+│   ├── run_pipeline.py           # Orchestrator — runs all steps with shared RUN_ID
+│   ├── synthetic/                # Data generation
+│   │   ├── phase0_seed.py        # Calibrated hazard parameters (latent classes)
+│   │   ├── generate_synthetic_cohort.py
+│   │   ├── bimodality_mixture_model.py
+│   │   └── lstm_hidden_states.py
+│   └── pipeline/                 # Feature engineering & model prep
+│       ├── build_static_matrix.py
+│       ├── build_panel.py
+│       ├── build_outcomes.py
+│       ├── build_lstm_tensors.py
+│       └── build_splits.py
+├── data/                         # gitignored — reconstructable from src/
+│   ├── raw/run_<timestamp>/      # patient_static.csv, patient_panel.csv
+│   └── processed/run_<timestamp>/
+│       ├── static/               # sud_static.csv
 │       ├── panel/                # sud_panel.csv (30-day windows)
 │       ├── outcomes/             # sud_outcomes.csv (survival)
 │       └── lstm_sequences/       # .npy tensors, scaler, split indices
 ├── models/                       # Trained model checkpoints
-├── outputs/figures/              # Diagnostic plots
+├── outputs/run_<timestamp>/figures/  # Diagnostic plots
+├── docs/                         # Documentation
 ├── notebooks/                    # EDA and analysis notebooks
 ├── requirements.txt
 └── README.md
@@ -106,16 +114,14 @@ Requires Python 3.12+.
 ## Reproducing the Data
 
 ```bash
-cd src
-python generate_synthetic_cohort.py
-python build_static_matrix.py
-python build_panel.py
-python build_outcomes.py
-python build_lstm_tensors.py
-python build_splits.py
+# Full pipeline (synthetic data mode — default)
+python src/run_pipeline.py
+
+# Real data mode (skip generation, expects data in data/raw/)
+SUD_DATA_MODE=real python src/run_pipeline.py
 ```
 
-All scripts use `np.random.seed(42)` for reproducibility.
+All scripts use `config.SEED = 42` for reproducibility. Each run produces a timestamped directory (`run_YYYYMMDD_HHMMSS/`) with a `latest` symlink.
 
 ## Roadmap
 

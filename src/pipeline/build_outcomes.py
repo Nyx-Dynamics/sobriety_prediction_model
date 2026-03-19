@@ -6,7 +6,7 @@ Sobriety Prediction Model | Nyx Dynamics LLC | MIT MicroMasters Capstone
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config
 
 import numpy as np

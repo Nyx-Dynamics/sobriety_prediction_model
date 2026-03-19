@@ -48,5 +48,17 @@ _symlink_latest(DATA_DIR / "processed" / "outcomes", RUN_ID)
 _symlink_latest(DATA_DIR / "processed" / "lstm_sequences", RUN_ID)
 _symlink_latest(PROJECT_ROOT / "outputs", RUN_ID)
 
+# Source directories
+SRC_DIR = PROJECT_ROOT / "src"
+SYNTHETIC_DIR = PROJECT_ROOT / "src" / "synthetic"
+PIPELINE_DIR = PROJECT_ROOT / "src" / "pipeline"
+
+# Data mode: "synthetic" runs generator first; "real" skips to pipeline
+DATA_MODE = os.environ.get("SUD_DATA_MODE", "synthetic")
+
+# Reproducibility
+SEED = 42
+
 print(f"[config] Run ID: {RUN_ID}")
+print(f"[config] Data mode: {DATA_MODE}")
 print(f"[config] Outputs: {OUTPUTS_DIR}")

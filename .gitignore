@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *.egg-info/
 dist/
 build/
@@ -21,18 +22,19 @@ env/
 .DS_Store
 Thumbs.db
 
-# Timestamped run outputs (large, reconstructable from src/)
-data/raw/run_*/
-data/processed/*/run_*/
-data/processed/*/latest
-data/raw/latest
-outputs/run_*/
-outputs/latest
+# Data (large, reconstructable from src/)
+data/raw/
+data/processed/
 
-# Legacy flat data paths
-data/processed/lstm_sequences/*.npy
-data/processed/lstm_sequences/scaler.pkl
-data/raw/sobriety_cohort_full.csv
+# Model artifacts
+models/bayesian_trace.nc
+models/lstm_checkpoint.pt
+
+# Keep benchmark results
+!models/benchmark_results.json
+
+# Outputs (reconstructable)
+outputs/
 
 # Jupyter
 .ipynb_checkpoints/
