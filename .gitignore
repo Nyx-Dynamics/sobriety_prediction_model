@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (large files — reconstruct from scripts)
+data/processed/lstm_sequences/*.npy
+data/processed/lstm_sequences/scaler.pkl
+data/raw/sobriety_cohort_full.csv
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+.env
+*.log
