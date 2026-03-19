@@ -21,7 +21,15 @@ env/
 .DS_Store
 Thumbs.db
 
-# Data (large files — reconstruct from scripts)
+# Timestamped run outputs (large, reconstructable from src/)
+data/raw/run_*/
+data/processed/*/run_*/
+data/processed/*/latest
+data/raw/latest
+outputs/run_*/
+outputs/latest
+
+# Legacy flat data paths
 data/processed/lstm_sequences/*.npy
 data/processed/lstm_sequences/scaler.pkl
 data/raw/sobriety_cohort_full.csv

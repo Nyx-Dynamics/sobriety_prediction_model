@@ -4,6 +4,11 @@ Build Static Feature Matrix (Steps 12-18)
 Sobriety Prediction Model | Nyx Dynamics LLC | MIT MicroMasters Capstone
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config
+
 import hashlib
 import numpy as np
 import pandas as pd
@@ -13,8 +18,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # ── Load source data ──────────────────────────────────────────────────
-static = pd.read_csv("/Users/acdstudpro/data/processed/static/patient_static.csv")
-panel = pd.read_csv("/Users/acdstudpro/data/processed/panel/patient_panel.csv")
+static = pd.read_csv(config.STATIC_DIR / "patient_static.csv")
+panel = pd.read_csv(config.PANEL_DIR / "patient_panel.csv")
 
 # ── 12. patient_id — SHA-256 hash (simulate PHI anonymization) ───────
 static["patient_id_hash"] = static["patient_id"].apply(
@@ -97,7 +102,7 @@ output_cols = [
 sud_static = static[output_cols].copy()
 
 # ── Save ──────────────────────────────────────────────────────────────
-sud_static.to_csv("/Users/acdstudpro/data/processed/static/sud_static.csv", index=False)
+sud_static.to_csv(config.STATIC_DIR / "sud_static.csv", index=False)
 
 # ══════════════════════════════════════════════════════════════════════
 # DIAGNOSTICS
@@ -145,8 +150,8 @@ sns.heatmap(
 )
 ax.set_title("Mental Health Co-occurrence Matrix\n(N=2,000 synthetic SUD cohort)", fontsize=13)
 plt.tight_layout()
-plt.savefig("/Users/acdstudpro/outputs/figures/mh_cooccurrence_heatmap.png", dpi=150)
-print("\n✓ Heatmap saved: outputs/figures/mh_cooccurrence_heatmap.png")
+plt.savefig(config.FIGURES_DIR / "mh_cooccurrence_heatmap.png", dpi=150)
+print(f"\n✓ Heatmap saved: {config.FIGURES_DIR / 'mh_cooccurrence_heatmap.png'}")
 
 # ── Flag patients missing >20% of features ───────────────────────────
 # Count non-demographic features for missingness check

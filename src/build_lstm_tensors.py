@@ -7,6 +7,12 @@ Produces (N, T, F) tensor with padding mask, train-only StandardScaler,
 and aligned outcome vectors.
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config
+
+import os
 import numpy as np
 import pandas as pd
 import pickle
@@ -17,9 +23,9 @@ np.random.seed(42)
 MASK_TOKEN = -999.0
 
 # ── Load data ─────────────────────────────────────────────────────────
-panel = pd.read_csv("/Users/acdstudpro/data/processed/panel/sud_panel.csv")
-static = pd.read_csv("/Users/acdstudpro/data/processed/static/sud_static.csv")
-outcomes = pd.read_csv("/Users/acdstudpro/data/processed/outcomes/sud_outcomes.csv")
+panel = pd.read_csv(config.PANEL_DIR / "sud_panel.csv")
+static = pd.read_csv(config.STATIC_DIR / "sud_static.csv")
+outcomes = pd.read_csv(config.OUTCOMES_DIR / "sud_outcomes.csv")
 
 # ══════════════════════════════════════════════════════════════════════
 # Step 28: Merge panel + static (broadcast static to every window)
@@ -132,7 +138,7 @@ scaler.fit(merged.loc[train_mask, continuous_cols])
 merged[continuous_cols] = scaler.transform(merged[continuous_cols])
 
 # Save scaler
-with open("/Users/acdstudpro/data/processed/lstm_sequences/scaler.pkl", "wb") as f:
+with open(config.LSTM_DIR / "scaler.pkl", "wb") as f:
     pickle.dump(scaler, f)
 print("✓ Scaler fitted on training data and saved")
 
@@ -190,10 +196,10 @@ y_event = outcomes.set_index("patient_id").loc[patient_order, "event"].values.as
 y_days = outcomes.set_index("patient_id").loc[patient_order, "days_to_event"].values.astype(np.float32)
 
 # Save arrays
-np.save("/Users/acdstudpro/data/processed/lstm_sequences/X_sequences.npy", X)
-np.save("/Users/acdstudpro/data/processed/lstm_sequences/y_event.npy", y_event)
-np.save("/Users/acdstudpro/data/processed/lstm_sequences/y_days.npy", y_days)
-np.save("/Users/acdstudpro/data/processed/lstm_sequences/padding_mask.npy", padding_mask)
+np.save(config.LSTM_DIR / "X_sequences.npy", X)
+np.save(config.LSTM_DIR / "y_event.npy", y_event)
+np.save(config.LSTM_DIR / "y_days.npy", y_days)
+np.save(config.LSTM_DIR / "padding_mask.npy", padding_mask)
 
 # Also save the train/test split indices and feature metadata
 meta = {
@@ -205,7 +211,7 @@ meta = {
     "max_windows": T,
     "mask_token": MASK_TOKEN,
 }
-with open("/Users/acdstudpro/data/processed/lstm_sequences/meta.pkl", "wb") as f:
+with open(config.LSTM_DIR / "meta.pkl", "wb") as f:
     pickle.dump(meta, f)
 
 # ══════════════════════════════════════════════════════════════════════
@@ -268,14 +274,13 @@ print(f"  Max:  {seq_lengths.max()}")
 print(f"  Median: {np.median(seq_lengths):.0f}")
 
 # File sizes
-import os
 files = {
-    "X_sequences.npy": "/Users/acdstudpro/data/processed/lstm_sequences/X_sequences.npy",
-    "y_event.npy": "/Users/acdstudpro/data/processed/lstm_sequences/y_event.npy",
-    "y_days.npy": "/Users/acdstudpro/data/processed/lstm_sequences/y_days.npy",
-    "padding_mask.npy": "/Users/acdstudpro/data/processed/lstm_sequences/padding_mask.npy",
-    "scaler.pkl": "/Users/acdstudpro/data/processed/lstm_sequences/scaler.pkl",
-    "meta.pkl": "/Users/acdstudpro/data/processed/lstm_sequences/meta.pkl",
+    "X_sequences.npy": config.LSTM_DIR / "X_sequences.npy",
+    "y_event.npy": config.LSTM_DIR / "y_event.npy",
+    "y_days.npy": config.LSTM_DIR / "y_days.npy",
+    "padding_mask.npy": config.LSTM_DIR / "padding_mask.npy",
+    "scaler.pkl": config.LSTM_DIR / "scaler.pkl",
+    "meta.pkl": config.LSTM_DIR / "meta.pkl",
 }
 print(f"\n── Saved files ──")
 for name, path in files.items():

@@ -7,6 +7,11 @@ Three-way stratified split on event × sud_type × mh_burden,
 with balance verification and scaler refit on final train split.
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config
+
 import numpy as np
 import pandas as pd
 import pickle
@@ -16,17 +21,17 @@ from sklearn.preprocessing import StandardScaler
 np.random.seed(42)
 
 # ── Load data ─────────────────────────────────────────────────────────
-outcomes = pd.read_csv("/Users/acdstudpro/data/processed/outcomes/sud_outcomes.csv")
-static = pd.read_csv("/Users/acdstudpro/data/processed/static/sud_static.csv")
-panel = pd.read_csv("/Users/acdstudpro/data/processed/panel/sud_panel.csv")
+outcomes = pd.read_csv(config.OUTCOMES_DIR / "sud_outcomes.csv")
+static = pd.read_csv(config.STATIC_DIR / "sud_static.csv")
+panel = pd.read_csv(config.PANEL_DIR / "sud_panel.csv")
 
 # Load LSTM tensors and metadata
-X = np.load("/Users/acdstudpro/data/processed/lstm_sequences/X_sequences.npy")
-y_event = np.load("/Users/acdstudpro/data/processed/lstm_sequences/y_event.npy")
-y_days = np.load("/Users/acdstudpro/data/processed/lstm_sequences/y_days.npy")
-padding_mask = np.load("/Users/acdstudpro/data/processed/lstm_sequences/padding_mask.npy")
+X = np.load(config.LSTM_DIR / "X_sequences.npy")
+y_event = np.load(config.LSTM_DIR / "y_event.npy")
+y_days = np.load(config.LSTM_DIR / "y_days.npy")
+padding_mask = np.load(config.LSTM_DIR / "padding_mask.npy")
 
-with open("/Users/acdstudpro/data/processed/lstm_sequences/meta.pkl", "rb") as f:
+with open(config.LSTM_DIR / "meta.pkl", "rb") as f:
     meta = pickle.load(f)
 
 patient_order = np.array(meta["patient_order"])
@@ -151,9 +156,9 @@ print(ct.to_string())
 # Step 35: Save split indices (NOT pre-split data)
 # ══════════════════════════════════════════════════════════════════════
 
-np.save("/Users/acdstudpro/data/processed/lstm_sequences/train_idx.npy", train_idx)
-np.save("/Users/acdstudpro/data/processed/lstm_sequences/val_idx.npy", val_idx)
-np.save("/Users/acdstudpro/data/processed/lstm_sequences/test_idx.npy", test_idx)
+np.save(config.LSTM_DIR / "train_idx.npy", train_idx)
+np.save(config.LSTM_DIR / "val_idx.npy", val_idx)
+np.save(config.LSTM_DIR / "test_idx.npy", test_idx)
 
 print("\n✓ Split indices saved:")
 print("  train_idx.npy, val_idx.npy, test_idx.npy")
@@ -163,8 +168,8 @@ print("  train_idx.npy, val_idx.npy, test_idx.npy")
 # ══════════════════════════════════════════════════════════════════════
 
 # Reload unscaled panel to refit scaler on the 70% train split
-panel_raw = pd.read_csv("/Users/acdstudpro/data/processed/panel/sud_panel.csv")
-static_raw = pd.read_csv("/Users/acdstudpro/data/processed/static/sud_static.csv")
+panel_raw = pd.read_csv(config.PANEL_DIR / "sud_panel.csv")
+static_raw = pd.read_csv(config.STATIC_DIR / "sud_static.csv")
 
 # Encode categoricals (same as build_lstm_tensors.py)
 panel_enc = panel_raw.copy()
@@ -245,10 +250,10 @@ for i in range(N):
             X_final[i, t, nan_mask] = 0.0
 
 # Overwrite saved arrays with correctly-scaled versions
-np.save("/Users/acdstudpro/data/processed/lstm_sequences/X_sequences.npy", X_final)
-np.save("/Users/acdstudpro/data/processed/lstm_sequences/padding_mask.npy", padding_mask_final)
+np.save(config.LSTM_DIR / "X_sequences.npy", X_final)
+np.save(config.LSTM_DIR / "padding_mask.npy", padding_mask_final)
 
-with open("/Users/acdstudpro/data/processed/lstm_sequences/scaler.pkl", "wb") as f:
+with open(config.LSTM_DIR / "scaler.pkl", "wb") as f:
     pickle.dump(scaler_final, f)
 
 # Update meta with final split info
@@ -258,7 +263,7 @@ meta["test_idx"] = test_idx.tolist()
 meta["train_pids"] = train_pids.tolist()
 meta["val_pids"] = patient_order[val_idx].tolist()
 meta["test_pids"] = patient_order[test_idx].tolist()
-with open("/Users/acdstudpro/data/processed/lstm_sequences/meta.pkl", "wb") as f:
+with open(config.LSTM_DIR / "meta.pkl", "wb") as f:
     pickle.dump(meta, f)
 
 # ══════════════════════════════════════════════════════════════════════

@@ -15,6 +15,11 @@ Features are modeled after:
 - Life event indicators from social determinants of health literature
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config
+
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -426,13 +431,13 @@ for pid in patient_ids:
 outcome_df = pd.DataFrame(outcome_rows)
 
 # ── Save all datasets ─────────────────────────────────────────────────
-static_df.to_csv("/Users/acdstudpro/data/processed/static/patient_static.csv", index=False)
-panel_df.to_csv("/Users/acdstudpro/data/processed/panel/patient_panel.csv", index=False)
-outcome_df.to_csv("/Users/acdstudpro/data/processed/outcomes/patient_outcomes.csv", index=False)
+static_df.to_csv(config.STATIC_DIR / "patient_static.csv", index=False)
+panel_df.to_csv(config.PANEL_DIR / "patient_panel.csv", index=False)
+outcome_df.to_csv(config.OUTCOMES_DIR / "patient_outcomes.csv", index=False)
 
 # Also save the combined (merged) dataset
 combined_df = panel_df.merge(static_df, on="patient_id", how="left")
-combined_df.to_csv("/Users/acdstudpro/data/raw/sobriety_cohort_full.csv", index=False)
+combined_df.to_csv(config.RAW_DIR / "sobriety_cohort_full.csv", index=False)
 
 print("=" * 70)
 print("SYNTHETIC COHORT GENERATION COMPLETE")

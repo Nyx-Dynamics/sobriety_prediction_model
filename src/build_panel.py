@@ -8,6 +8,11 @@ derives time-varying features, computes cumulative stress,
 and flags sparse windows.
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config
+
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -17,13 +22,13 @@ import matplotlib.pyplot as plt
 np.random.seed(42)
 
 # ── Load source data ──────────────────────────────────────────────────
-panel_q = pd.read_csv("/Users/acdstudpro/data/processed/panel/patient_panel.csv")
-static = pd.read_csv("/Users/acdstudpro/data/processed/static/sud_static.csv")
+panel_q = pd.read_csv(config.PANEL_DIR / "patient_panel.csv")
+static = pd.read_csv(config.STATIC_DIR / "sud_static.csv")
 
 panel_q["visit_date"] = pd.to_datetime(panel_q["visit_date"])
 
 # Get enrollment (entry) dates from the original static file
-static_full = pd.read_csv("/Users/acdstudpro/data/processed/static/patient_static.csv")
+static_full = pd.read_csv(config.STATIC_DIR / "patient_static.csv")
 static_full["enrollment_date"] = pd.to_datetime(static_full["enrollment_date"])
 entry_dates = static_full.set_index("patient_id")["enrollment_date"]
 
@@ -212,7 +217,7 @@ for pid in patients:
 panel_30["cumulative_stress"] = stress_col
 
 # ── Save ──────────────────────────────────────────────────────────────
-panel_30.to_csv("/Users/acdstudpro/data/processed/panel/sud_panel.csv", index=False)
+panel_30.to_csv(config.PANEL_DIR / "sud_panel.csv", index=False)
 
 # ══════════════════════════════════════════════════════════════════════
 # Step 23: Diagnostics
@@ -287,8 +292,8 @@ axes[2].axhline(ae_by_window["ae_any"].mean(), color="gray",
                 linestyle=":", alpha=0.5, label="Overall mean")
 
 plt.tight_layout()
-plt.savefig("/Users/acdstudpro/outputs/figures/panel_diagnostics.png", dpi=150)
-print(f"\n✓ Diagnostics figure saved: outputs/figures/panel_diagnostics.png")
+plt.savefig(config.FIGURES_DIR / "panel_diagnostics.png", dpi=150)
+print(f"\n✓ Diagnostics figure saved: {config.FIGURES_DIR / 'panel_diagnostics.png'}")
 
 # ── Cumulative stress distribution ────────────────────────────────────
 print(f"\n── Cumulative stress distribution ──")

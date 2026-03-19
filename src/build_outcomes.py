@@ -4,6 +4,11 @@ Build Survival Outcome File (Steps 24-27)
 Sobriety Prediction Model | Nyx Dynamics LLC | MIT MicroMasters Capstone
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config
+
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -16,12 +21,12 @@ import diptest
 np.random.seed(42)
 
 # ── Load source data ──────────────────────────────────────────────────
-panel = pd.read_csv("/Users/acdstudpro/data/processed/panel/sud_panel.csv")
-static = pd.read_csv("/Users/acdstudpro/data/processed/static/sud_static.csv")
-panel_q = pd.read_csv("/Users/acdstudpro/data/processed/panel/patient_panel.csv")
+panel = pd.read_csv(config.PANEL_DIR / "sud_panel.csv")
+static = pd.read_csv(config.STATIC_DIR / "sud_static.csv")
+panel_q = pd.read_csv(config.PANEL_DIR / "patient_panel.csv")
 panel_q["visit_date"] = pd.to_datetime(panel_q["visit_date"])
 
-static_full = pd.read_csv("/Users/acdstudpro/data/processed/static/patient_static.csv")
+static_full = pd.read_csv(config.STATIC_DIR / "patient_static.csv")
 static_full["enrollment_date"] = pd.to_datetime(static_full["enrollment_date"])
 entry_dates = static_full.set_index("patient_id")["enrollment_date"]
 
@@ -128,7 +133,7 @@ for pid in patients:
 outcomes = pd.DataFrame(outcome_rows)
 
 # ── Save ──────────────────────────────────────────────────────────────
-outcomes.to_csv("/Users/acdstudpro/data/processed/outcomes/sud_outcomes.csv", index=False)
+outcomes.to_csv(config.OUTCOMES_DIR / "sud_outcomes.csv", index=False)
 
 # ══════════════════════════════════════════════════════════════════════
 # Diagnostics
@@ -249,8 +254,8 @@ ax2.legend(fontsize=11)
 ax2.grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig("/Users/acdstudpro/outputs/figures/survival_diagnostics.png", dpi=150)
-print(f"\n✓ Figures saved: outputs/figures/survival_diagnostics.png")
+plt.savefig(config.FIGURES_DIR / "survival_diagnostics.png", dpi=150)
+print(f"\n✓ Figures saved: {config.FIGURES_DIR / 'survival_diagnostics.png'}")
 
 # ── Summary table by SUD type ─────────────────────────────────────────
 print(f"\n── Summary by SUD type ──")
