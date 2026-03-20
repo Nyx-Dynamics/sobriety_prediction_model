@@ -1,0 +1,75 @@
+{
+  "gamma_mean": [
+    0.024749687462548083,
+    -0.1034878985765768,
+    0.035139242454535896,
+    0.04396792102195471
+  ],
+  "gamma_hdi_lo": [
+    -0.053782081246307664,
+    -0.16977770188653124,
+    -0.027317106576743327,
+    -0.017659539870132395
+  ],
+  "gamma_hdi_hi": [
+    0.10315881536451213,
+    -0.035531769651141604,
+    0.09750652903819049,
+    0.10451525618616905
+  ],
+  "pathway_names": [
+    "Treatment access",
+    "Monitoring continuity",
+    "Social support density",
+    "Clinical self-advocacy"
+  ],
+  "resource_cols": [
+    "treatment_intensity",
+    "monitoring_intensity",
+    "social_support_density",
+    "self_advocacy_index"
+  ],
+  "pafs": {
+    "treatment_intensity": 0.0,
+    "monitoring_intensity": 0.0,
+    "social_support_density": 0.0,
+    "self_advocacy_index": 0.0
+  },
+  "R_mean": [
+    3.368469294225481,
+    2.470210815765353,
+    6.626947754353804,
+    4.526122823098075
+  ],
+  "R_std": [
+    1.0669071634916847,
+    1.0425335222715841,
+    1.5534084135483008,
+    2.139499231742456
+  ],
+  "resource_ranges_raw": [
+    5.0,
+    4.0,
+    10.0,
+    10.0
+  ],
+  "paf_vs_seed": {
+    "treatment_intensity": -0.038572941806635175,
+    "monitoring_intensity": 0.14088776666535496,
+    "social_support_density": -0.04328023473701936,
+    "self_advocacy_index": -0.09629982051961927
+  },
+  "equity_ratio_vs_seed": 0.9799022853220828,
+  "seed_reference_raw": [
+    5.0,
+    4.0,
+    8.5,
+    9.0
+  ],
+  "seed_reference_z": [
+    1.5292152509642747,
+    1.467376493468889,
+    1.2057693452089422,
+    2.0910861338605384
+  ]
+}
