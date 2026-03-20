@@ -22,10 +22,27 @@ from lifelines.statistics import multivariate_logrank_test
 
 np.random.seed(config.SEED)
 
-# ── Load data ─────────────────────────────────────────────────────────
-data_dir = config.PROJECT_ROOT / "data" / "phase5" / "stratified"
-static = pd.read_csv(data_dir / "patient_static_stratified.csv")
-panel = pd.read_csv(data_dir / "patient_panel_stratified.csv")
+# ── Load data (NTIES primary, synthetic fallback) ─────────────────────
+proc_dir = config.PROJECT_ROOT / "data" / "phase5" / "processed"
+synth_dir = config.PROJECT_ROOT / "data" / "phase5" / "stratified"
+
+nties_path = proc_dir / "nties_phase5.csv"
+synth_path = synth_dir / "patient_static_stratified.csv"
+
+if nties_path.exists():
+    static = pd.read_csv(nties_path)
+    data_source = "NTIES"
+    print(f"[figures] Using NTIES data (N={len(static)})")
+elif synth_path.exists():
+    static = pd.read_csv(synth_path)
+    data_source = "Synthetic"
+    print(f"[figures] Using synthetic data (N={len(static)})")
+else:
+    raise FileNotFoundError("No Phase 5 data found")
+
+# For NTIES: event and days_to_event are already in static
+# For synthetic: would need panel-based computation
+panel = None
 
 model_dir = config.PROJECT_ROOT / "models" / "phase5"
 with open(model_dir / "pathway_results.json") as f:
@@ -44,34 +61,27 @@ resource_ranges_raw = np.array(results["resource_ranges_raw"])
 fig_dir = config.PROJECT_ROOT / "outputs" / "phase5" / "figures"
 fig_dir.mkdir(parents=True, exist_ok=True)
 
-# ── Build per-patient outcomes ────────────────────────────────────────
-outcome_rows = []
-for pid in static["patient_id"]:
-    pt = panel[panel["patient_id"] == pid].sort_values("quarter")
-    n_obs = len(pt)
-    ever_sober = False
-    event = 0
-    days = n_obs * 90
+# ── Build outcomes dataframe ──────────────────────────────────────────
+# NTIES: event and days_to_event are columns in static
+# Stratify by treatment_intensity (maps to resource level)
+if "event" in static.columns and "days_to_event" in static.columns:
+    oc = static[["caseid", "event", "days_to_event", "treatment_intensity"]].copy()
+    oc.rename(columns={"days_to_event": "days"}, inplace=True)
+else:
+    raise ValueError("Expected event and days_to_event in data")
 
-    for _, row in pt.iterrows():
-        if row["sober_this_quarter"] == 1:
-            ever_sober = True
-        elif ever_sober and row["uds_positive"] == 1:
-            event = 1
-            days = int(row["quarter"]) * 90
-            break
-
-    if event == 0 and not ever_sober and (pt["uds_positive"] == 1).any():
-        if np.random.random() < 0.65:
-            event = 1
-            days = int(pt[pt["uds_positive"] == 1].iloc[-1]["quarter"]) * 90
-
-    outcome_rows.append({"patient_id": pid, "event": event, "days": max(days, 1)})
-
-oc = pd.DataFrame(outcome_rows).merge(static[["patient_id", "stratum"]], on="patient_id")
+# Map treatment_intensity to resource strata for visualization
+# 5=long residential → A, 4=short residential → B, 3=MAT → C, 2=OP → D
+tx_to_stratum = {5: "A", 4: "B", 3: "C", 2: "D", 1: "D", 0: "D"}
+oc["stratum"] = oc["treatment_intensity"].map(tx_to_stratum).fillna("D")
 
 STRATUM_COLORS = {"A": "#2ca02c", "B": "#1f77b4", "C": "#ff7f0e", "D": "#d62728"}
-STRATUM_LABELS = {"A": "High resource", "B": "Moderate", "C": "Low", "D": "Minimal"}
+STRATUM_LABELS = {
+    "A": "Long-term residential",
+    "B": "Short-term residential",
+    "C": "MAT/Methadone",
+    "D": "Outpatient/None",
+}
 
 # ══════════════════════════════════════════════════════════════════════
 # Figure E1: KM by resource stratum
@@ -79,24 +89,24 @@ STRATUM_LABELS = {"A": "High resource", "B": "Moderate", "C": "Low", "D": "Minim
 
 fig, ax = plt.subplots(figsize=(10, 7))
 medians = {}
-for sk in ["A", "B", "C", "D"]:
+strata_present = [s for s in ["A", "B", "C", "D"] if (oc["stratum"] == s).sum() > 0]
+for sk in strata_present:
     sub = oc[oc["stratum"] == sk]
     kmf = KaplanMeierFitter()
     kmf.fit(sub["days"], event_observed=sub["event"],
-            label=f"Stratum {sk}: {STRATUM_LABELS[sk]} (n={len(sub)})")
+            label=f"{STRATUM_LABELS[sk]} (n={len(sub)})")
     kmf.plot_survival_function(ax=ax, color=STRATUM_COLORS[sk], linewidth=2, ci_alpha=0.12)
     medians[sk] = kmf.median_survival_time_
 
-# Log-rank test
 lr = multivariate_logrank_test(oc["days"], oc["stratum"], oc["event"])
 ax.set_xlabel("Days from treatment entry", fontsize=12)
 ax.set_ylabel("Sobriety probability", fontsize=12)
-ax.set_title("Kaplan-Meier by Resource Stratum", fontsize=14, fontweight="bold")
+ax.set_title("Kaplan-Meier by Treatment Intensity (NTIES)", fontsize=14, fontweight="bold")
 ax.set_ylim(0, 1.02)
 ax.grid(True, alpha=0.3)
 ax.legend(fontsize=10, loc="lower left")
 
-median_text = "\n".join(f"  {sk}: {medians[sk]:.0f}d" for sk in ["A", "B", "C", "D"])
+median_text = "\n".join(f"  {sk}: {medians[sk]:.0f}d" for sk in strata_present)
 ax.annotate(
     f"Log-rank p={lr.p_value:.2e}\n\nMedian survival:\n{median_text}",
     xy=(0.62, 0.65), xycoords="axes fraction", fontsize=9,
@@ -151,15 +161,19 @@ print(f"✓ E2: {fig_dir / 'equity_figure2_pathway_posteriors.png'}")
 # Figure E3: Equity gap decomposition waterfall
 # ══════════════════════════════════════════════════════════════════════
 
-# Compute stratum-level sobriety rates
+# Compute stratum-level sobriety rates (1 - event_rate)
 stratum_sobriety = {}
-for sk in ["A", "B", "C", "D"]:
-    pids = static[static["stratum"] == sk]["patient_id"]
-    sub_panel = panel[panel["patient_id"].isin(pids)]
-    stratum_sobriety[sk] = sub_panel.groupby("patient_id")["sober_this_quarter"].mean().mean()
+for sk in strata_present:
+    sub = oc[oc["stratum"] == sk]
+    stratum_sobriety[sk] = 1 - sub["event"].mean()
 
-p_d = stratum_sobriety["D"]
-p_a = stratum_sobriety["A"]
+p_best = stratum_sobriety.get("A", max(stratum_sobriety.values()))
+p_worst = stratum_sobriety.get("D", min(stratum_sobriety.values()))
+# Use best/worst strata present
+best_stratum = max(stratum_sobriety, key=stratum_sobriety.get)
+worst_stratum = min(stratum_sobriety, key=stratum_sobriety.get)
+p_a = stratum_sobriety[best_stratum]
+p_d = stratum_sobriety[worst_stratum]
 
 # Pathway contributions (proportional to PAF)
 total_paf_sum = sum(pafs.values())
@@ -186,10 +200,14 @@ for i, (pname, start, delta) in enumerate(bar_data):
 
 # Start and end markers
 ax.barh(len(bar_data), 0.001, left=p_d, color="gray", height=0.4)
-ax.text(p_d - 0.02, len(bar_data), f"Stratum D\n{p_d:.1%}", ha="right", va="center", fontsize=10)
+ax.text(max(p_d - 0.02, 0.01), len(bar_data),
+        f"{STRATUM_LABELS.get(worst_stratum, worst_stratum)}\n{p_d:.1%}",
+        ha="right", va="center", fontsize=10)
 
 ax.barh(-1, 0.001, left=p_a, color="gray", height=0.4)
-ax.text(p_a + 0.01, -1, f"Stratum A\n{p_a:.1%}", ha="left", va="center", fontsize=10)
+ax.text(p_a + 0.01, -1,
+        f"{STRATUM_LABELS.get(best_stratum, best_stratum)}\n{p_a:.1%}",
+        ha="left", va="center", fontsize=10)
 
 # Reference lines
 ax.axvline(0.35, color="darkblue", linestyle=":", linewidth=1.5, alpha=0.7, label="Community midpoint (0.35)")

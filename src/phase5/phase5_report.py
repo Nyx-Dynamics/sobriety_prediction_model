@@ -21,8 +21,16 @@ model_dir = config.PROJECT_ROOT / "models" / "phase5"
 out_dir = config.PROJECT_ROOT / "outputs" / "phase5"
 out_dir.mkdir(parents=True, exist_ok=True)
 
-static = pd.read_csv(data_dir / "patient_static_stratified.csv")
-panel = pd.read_csv(data_dir / "patient_panel_stratified.csv")
+# Load data: NTIES (primary) or synthetic (fallback)
+proc_dir = config.PROJECT_ROOT / "data" / "phase5" / "processed"
+nties_path = proc_dir / "nties_phase5.csv"
+
+if nties_path.exists():
+    static = pd.read_csv(nties_path)
+    data_source = "NTIES (ICPSR 2884)"
+else:
+    static = pd.read_csv(data_dir / "patient_static_stratified.csv")
+    data_source = "Synthetic"
 
 with open(model_dir / "pathway_results.json") as f:
     results = json.load(f)
@@ -37,31 +45,23 @@ R_std = np.array(results["R_std"])
 resource_ranges_raw = np.array(results["resource_ranges_raw"])
 resource_ranges_z = resource_ranges_raw / R_std
 
-# ── Compute stratum-level stats ───────────────────────────────────────
+# ── Compute stratum-level stats by treatment_intensity ────────────────
+tx_to_stratum = {5: "A", 4: "B", 3: "C", 2: "D", 1: "D", 0: "D"}
+stratum_labels = {
+    "A": "Long-term residential", "B": "Short-term residential",
+    "C": "MAT/Methadone", "D": "Outpatient/None",
+}
+static["stratum"] = static["treatment_intensity"].map(tx_to_stratum).fillna("D")
+
 stratum_stats = {}
 for sk in ["A", "B", "C", "D"]:
-    pids = static[static["stratum"] == sk]["patient_id"]
-    sub = panel[panel["patient_id"].isin(pids)]
-    sobriety = sub.groupby("patient_id")["sober_this_quarter"].mean().mean()
-
-    # Relapse rate
-    relapse_n = 0
-    for pid in pids:
-        pt = sub[sub["patient_id"] == pid].sort_values("quarter")
-        ever_sober = False
-        for _, row in pt.iterrows():
-            if row["sober_this_quarter"] == 1:
-                ever_sober = True
-            elif ever_sober and row["uds_positive"] == 1:
-                relapse_n += 1
-                break
-        if not ever_sober and (pt["uds_positive"] == 1).any():
-            relapse_n += 1
-
+    sub = static[static["stratum"] == sk]
+    if len(sub) == 0:
+        continue
     stratum_stats[sk] = {
-        "n": len(pids),
-        "relapse_rate": relapse_n / len(pids),
-        "sobriety_rate": sobriety,
+        "n": len(sub),
+        "relapse_rate": sub["event"].mean(),
+        "sobriety_rate": 1 - sub["event"].mean(),
     }
 
 # ── HRs ───────────────────────────────────────────────────────────────
@@ -70,8 +70,10 @@ hr_los = np.exp(gamma_lo * resource_ranges_z)
 hr_his = np.exp(gamma_hi * resource_ranges_z)
 
 # ── Equity gap ────────────────────────────────────────────────────────
-p_a = stratum_stats["A"]["sobriety_rate"]
-p_d = stratum_stats["D"]["sobriety_rate"]
+best_stratum = max(stratum_stats, key=lambda k: stratum_stats[k]["sobriety_rate"])
+worst_stratum = min(stratum_stats, key=lambda k: stratum_stats[k]["sobriety_rate"])
+p_a = stratum_stats[best_stratum]["sobriety_rate"]
+p_d = stratum_stats[worst_stratum]["sobriety_rate"]
 equity_ratio = p_a / max(p_d, 0.01)
 total_paf = sum(pafs.values())
 
@@ -90,12 +92,14 @@ print("═" * 60)
 print(f"\n  Cohort: N={len(static):,} stratified synthetic patients "
       f"(4 strata × {len(static)//4:,})")
 
-print(f"\n  Relapse rates by stratum:")
-labels = {"A": "High resource", "B": "Moderate", "C": "Low", "D": "Minimal resource"}
+print(f"\n  Data source: {data_source}")
+print(f"\n  Relapse rates by treatment level:")
 for sk in ["A", "B", "C", "D"]:
+    if sk not in stratum_stats:
+        continue
     s = stratum_stats[sk]
-    print(f"    Stratum {sk} ({labels[sk]:>20}): {s['relapse_rate']:>6.1%}  "
-          f"(sobriety: {s['sobriety_rate']:.1%})")
+    print(f"    {stratum_labels[sk]:>25}: {s['relapse_rate']:>6.1%}  "
+          f"(sobriety: {s['sobriety_rate']:.1%}, n={s['n']})")
 
 print(f"\n  Pathway attribution (posterior means, 94% HDI):")
 for k in range(len(resource_cols)):
