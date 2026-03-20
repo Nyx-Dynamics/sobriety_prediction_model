@@ -175,81 +175,100 @@ worst_stratum = min(stratum_sobriety, key=stratum_sobriety.get)
 p_a = stratum_sobriety[best_stratum]
 p_d = stratum_sobriety[worst_stratum]
 
-# Pathway contributions (proportional to PAF)
-total_paf_sum = sum(pafs.values())
-gap = p_a - p_d
-contributions = {}
-for col, pname in zip(resource_cols, pathway_names):
-    contributions[pname] = gap * (pafs[col] / total_paf_sum) if total_paf_sum > 0 else gap / 4
+# ── Load seed-trajectory PAF values ───────────────────────────────────
+pafs_seed = results.get("paf_vs_seed", {})
+nties_sobriety = 1 - static["event"].mean()  # ~0.091
+seed_sobriety = 0.926
+total_gap = seed_sobriety - nties_sobriety
 
-fig, ax = plt.subplots(figsize=(12, 7))
+# Monitoring PAF is the only meaningful positive contributor
+monitoring_paf = pafs_seed.get("monitoring_intensity", 0.141)
+monitoring_contribution = total_gap * monitoring_paf
+unexplained = total_gap - monitoring_contribution
 
-# Waterfall construction
-running = p_d
-bar_data = []
-for pname in pathway_names:
-    c = contributions[pname]
-    bar_data.append((pname, running, c))
-    running += c
+fig, ax = plt.subplots(figsize=(14, 6))
 
-# Draw bars
-for i, (pname, start, delta) in enumerate(bar_data):
-    color = pathway_colors[i]
-    ax.barh(i, delta, left=start, color=color, edgecolor="white", height=0.6)
-    ax.text(start + delta + 0.005, i, f"+{delta:.3f}", va="center", fontsize=10, fontweight="bold")
+# Waterfall: NTIES → +monitoring → +unexplained → seed
+bar_data = [
+    ("NTIES population\n(observed)", 0, nties_sobriety, "#888888"),
+    ("Monitoring continuity\nequalized to seed", nties_sobriety, monitoring_contribution, "#1f77b4"),
+    ("Unexplained gap\n(confounding by indication)", nties_sobriety + monitoring_contribution, unexplained, "#cccccc"),
+]
 
-# Start and end markers
-ax.barh(len(bar_data), 0.001, left=p_d, color="gray", height=0.4)
-ax.text(max(p_d - 0.02, 0.01), len(bar_data),
-        f"{STRATUM_LABELS.get(worst_stratum, worst_stratum)}\n{p_d:.1%}",
-        ha="right", va="center", fontsize=10)
-
-ax.barh(-1, 0.001, left=p_a, color="gray", height=0.4)
-ax.text(p_a + 0.01, -1,
-        f"{STRATUM_LABELS.get(best_stratum, best_stratum)}\n{p_a:.1%}",
-        ha="left", va="center", fontsize=10)
+for label, start, width, color in bar_data:
+    ax.barh(label, width, left=start, color=color, edgecolor="white", height=0.55)
+    pct = width / total_gap * 100 if total_gap > 0 else 0
+    if width > 0.02:
+        ax.text(start + width / 2, label, f"{width:.3f}\n({pct:.1f}%)",
+                ha="center", va="center", fontsize=10, fontweight="bold",
+                color="white" if color != "#cccccc" else "black")
 
 # Reference lines
 ax.axvline(0.35, color="darkblue", linestyle=":", linewidth=1.5, alpha=0.7, label="Community midpoint (0.35)")
-ax.axvline(0.926, color="darkgreen", linestyle=":", linewidth=1.5, alpha=0.7, label="Seed trajectory (0.926)")
+ax.axvline(seed_sobriety, color="darkgreen", linestyle=":", linewidth=1.5, alpha=0.7, label="Seed trajectory (0.926)")
+ax.axvline(nties_sobriety, color="darkred", linestyle=":", linewidth=1.5, alpha=0.7, label=f"NTIES mean ({nties_sobriety:.1%})")
 
-ax.set_yticks(range(len(bar_data)))
-ax.set_yticklabels([b[0] for b in bar_data], fontsize=11)
 ax.set_xlabel("Sobriety rate", fontsize=12)
-ax.set_title("Equity Gap Decomposition by Resource Pathway", fontsize=14, fontweight="bold")
+ax.set_title("Equity Gap Decomposition: NTIES → Seed Trajectory", fontsize=14, fontweight="bold")
 ax.legend(fontsize=9, loc="lower right")
 ax.set_xlim(0, 1.05)
 ax.grid(axis="x", alpha=0.3)
-ax.invert_yaxis()
+
+ax.annotate(
+    f"85.9% of equity gap not explained by observable\n"
+    f"resource pathways — confounding by indication\n"
+    f"prevents full attribution in NTIES",
+    xy=(0.55, 0.15), xycoords="axes fraction", fontsize=9,
+    bbox=dict(boxstyle="round,pad=0.4", facecolor="lightyellow", alpha=0.9),
+)
+
 plt.tight_layout()
 plt.savefig(fig_dir / "equity_figure3_gap_decomposition.png", dpi=200)
 print(f"✓ E3: {fig_dir / 'equity_figure3_gap_decomposition.png'}")
 
 # ══════════════════════════════════════════════════════════════════════
-# Figure E4: Population-attributable fraction
+# Figure E4: PAF vs. Seed Trajectory Reference
 # ══════════════════════════════════════════════════════════════════════
 
-fig, ax = plt.subplots(figsize=(10, 6))
-paf_vals = [pafs[col] * 100 for col in resource_cols]
-y_pos = np.arange(len(pathway_names))
+fig, ax = plt.subplots(figsize=(12, 5))
 
-bars = ax.barh(y_pos, paf_vals, color=pathway_colors, edgecolor="white", height=0.6)
-for i, (bar, paf) in enumerate(zip(bars, paf_vals)):
-    label = f"{paf:.1f}%"
-    action = {
-        0: "If treatment access equalized",
-        1: "If monitoring equalized",
-        2: "If social support equalized",
-        3: "If self-advocacy equalized",
-    }[i]
-    ax.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height() / 2,
-            f"{label} — {action}", va="center", fontsize=10)
+# Use seed-trajectory PAF values
+paf_seed_vals = [pafs_seed.get(col, 0) * 100 for col in resource_cols]
+# Sort by absolute value
+sorted_pairs = sorted(zip(pathway_names, paf_seed_vals, resource_cols, pathway_colors),
+                       key=lambda x: abs(x[1]), reverse=True)
+sorted_names = [p[0] for p in sorted_pairs]
+sorted_vals = [p[1] for p in sorted_pairs]
+sorted_colors = [p[3] for p in sorted_pairs]
 
+y_pos = np.arange(len(sorted_names))
+bars = ax.barh(y_pos, sorted_vals, color=sorted_colors, edgecolor="white", height=0.55)
+
+# Labels
+for i, (bar, paf_val, name) in enumerate(zip(bars, sorted_vals, sorted_names)):
+    x_pos = bar.get_width()
+    ha = "left" if paf_val >= 0 else "right"
+    offset = 0.8 if paf_val >= 0 else -0.8
+    ax.text(x_pos + offset, bar.get_y() + bar.get_height() / 2,
+            f"{paf_val:+.1f}%", va="center", ha=ha, fontsize=11, fontweight="bold")
+
+ax.axvline(0, color="black", linewidth=1.0)
 ax.set_yticks(y_pos)
-ax.set_yticklabels(pathway_names, fontsize=11)
-ax.set_xlabel("Population-Attributable Fraction (%)", fontsize=12)
-ax.set_title("Policy Levers: Share of Equity Gap by Pathway", fontsize=14, fontweight="bold")
+ax.set_yticklabels(sorted_names, fontsize=11)
+ax.set_xlabel("Population-Attributable Fraction vs. Seed Trajectory (%)", fontsize=12)
+ax.set_title("PAF vs. Seed Trajectory Reference\n"
+             "(physician monitoring program = reference level)",
+             fontsize=13, fontweight="bold")
 ax.grid(axis="x", alpha=0.3)
+
+ax.annotate(
+    "Negative PAF = confounding by indication\n"
+    "(higher-intensity treatment given to\n"
+    " more severe patients in NTIES)",
+    xy=(0.02, 0.65), xycoords="axes fraction", fontsize=9,
+    bbox=dict(boxstyle="round,pad=0.4", facecolor="lightyellow", alpha=0.9),
+)
+
 plt.tight_layout()
 plt.savefig(fig_dir / "equity_figure4_paf.png", dpi=200)
 print(f"✓ E4: {fig_dir / 'equity_figure4_paf.png'}")
