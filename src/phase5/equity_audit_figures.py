@@ -244,13 +244,19 @@ sorted_colors = [p[3] for p in sorted_pairs]
 y_pos = np.arange(len(sorted_names))
 bars = ax.barh(y_pos, sorted_vals, color=sorted_colors, edgecolor="white", height=0.55)
 
-# Labels
-for i, (bar, paf_val, name) in enumerate(zip(bars, sorted_vals, sorted_names)):
-    x_pos = bar.get_width()
-    ha = "left" if paf_val >= 0 else "right"
-    offset = 0.8 if paf_val >= 0 else -0.8
-    ax.text(x_pos + offset, bar.get_y() + bar.get_height() / 2,
-            f"{paf_val:+.1f}%", va="center", ha=ha, fontsize=11, fontweight="bold")
+# Labels — outside the bar on the appropriate side
+for bar, val in zip(bars, sorted_vals):
+    width = bar.get_width()
+    y = bar.get_y() + bar.get_height() / 2
+    if width < 0:
+        ax.text(width - 0.3, y, f"{val:.1f}%",
+                ha="right", va="center",
+                fontsize=11, fontweight="bold")
+    else:
+        ax.text(width + 0.3, y, f"+{val:.1f}%",
+                ha="left", va="center",
+                fontsize=11, fontweight="bold",
+                color="#1565C0")
 
 ax.axvline(0, color="black", linewidth=1.0)
 ax.set_yticks(y_pos)
