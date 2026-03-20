@@ -19,24 +19,38 @@ import arviz as az
 
 np.random.seed(config.SEED)
 
-# ── Load data: TEDS-D (real) or synthetic (fallback) ──────────────────
-teds_path = config.PROJECT_ROOT / "data" / "phase5" / "processed" / "teds_phase5.csv"
+# ── Load data: priority order NTIES > DATOS > TEDS-D > CALDATA > synthetic
+proc_dir = config.PROJECT_ROOT / "data" / "phase5" / "processed"
+nties_path = proc_dir / "nties_phase5.csv"
+datos_path = proc_dir / "datos_phase5.csv"
+teds_path = proc_dir / "teds_phase5.csv"
+caldata_path = proc_dir / "caldata_phase5.csv"
 synthetic_path = config.PROJECT_ROOT / "data" / "phase5" / "stratified" / "patient_static_stratified.csv"
 
-if teds_path.exists():
+validation_df = None
+
+if nties_path.exists():
+    df = pd.read_csv(nties_path)
+    data_source = "NTIES (ICPSR 2884)"
+    print(f"[phase5] Primary: NTIES N={len(df)}")
+    if datos_path.exists():
+        validation_df = pd.read_csv(datos_path)
+        print(f"[phase5] Validation: DATOS N={len(validation_df)}")
+elif datos_path.exists():
+    df = pd.read_csv(datos_path)
+    data_source = "DATOS (ICPSR 2258)"
+    print(f"[phase5] Primary: DATOS N={len(df)}")
+elif teds_path.exists():
     df = pd.read_csv(teds_path)
     data_source = "TEDS-D 2022"
-    print(f"[phase5] Using real data: TEDS-D 2022 (N={len(df)})")
+    print(f"[phase5] Primary: TEDS-D 2022 N={len(df)}")
 elif synthetic_path.exists():
     df = pd.read_csv(synthetic_path)
     data_source = "Synthetic stratified cohort"
-    print(f"[phase5] WARNING: Using synthetic data — download TEDS-D for real analysis")
-    print(f"[phase5] Run: python src/phase5/download_datasets.py")
+    print(f"[phase5] WARNING: Using synthetic data — run prepare_nties.py first")
 else:
     raise FileNotFoundError(
-        "No Phase 5 data found. Run either:\n"
-        "  python src/phase5/download_datasets.py  (for real TEDS-D data)\n"
-        "  python src/phase5/generate_stratified_cohort.py  (for synthetic fallback)"
+        "No Phase 5 data found. Run: python src/phase5/run_phase5.py"
     )
 
 # Subsample for first run if TEDS-D is very large

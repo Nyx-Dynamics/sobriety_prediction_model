@@ -19,12 +19,14 @@ PROJECT_ROOT = PHASE5_DIR.parent.parent
 
 SCRIPTS = [
     PHASE5_DIR / "download_datasets.py",           # Step 1: acquire data
-    PHASE5_DIR / "prepare_teds.py",                # Step 2: process TEDS-D
-    PHASE5_DIR / "prepare_caldata.py",             # Step 3: process CALDATA (optional)
-    PHASE5_DIR / "generate_stratified_cohort.py",  # Step 4: synthetic fallback
-    PHASE5_DIR / "pathway_attribution_model.py",   # Step 5: Bayesian model
-    PHASE5_DIR / "equity_audit_figures.py",         # Step 6: figures
-    PHASE5_DIR / "phase5_report.py",               # Step 7: report
+    PHASE5_DIR / "prepare_nties.py",               # Step 2: NTIES (primary)
+    PHASE5_DIR / "prepare_datos.py",               # Step 3: DATOS (validation)
+    PHASE5_DIR / "prepare_teds.py",                # Step 4: TEDS-D (secondary)
+    PHASE5_DIR / "prepare_caldata.py",             # Step 5: CALDATA (optional)
+    PHASE5_DIR / "generate_stratified_cohort.py",  # Step 6: synthetic fallback
+    PHASE5_DIR / "pathway_attribution_model.py",   # Step 7: Bayesian model
+    PHASE5_DIR / "equity_audit_figures.py",         # Step 8: figures
+    PHASE5_DIR / "phase5_report.py",               # Step 9: report
 ]
 
 

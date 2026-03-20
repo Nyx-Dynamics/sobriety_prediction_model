@@ -147,3 +147,27 @@ audit_results = {
 with open(out_dir / "equity_audit_results.json", "w") as f:
     json.dump(audit_results, f, indent=2)
 print(f"\n✓ Saved: {out_dir / 'equity_audit_results.json'}")
+
+print("""
+── Dataset Citations ──────────────────────────────────────
+PRIMARY DATASET:
+  United States DHHS. SAMHSA. CSAT. National Treatment
+  Improvement Evaluation Study (NTIES), 1992-1997.
+  ICPSR 2884. https://doi.org/10.3886/ICPSR02884.v4
+
+VALIDATION DATASET:
+  United States DHHS. NIH. NIDA. Drug Abuse Treatment
+  Outcome Study (DATOS), 1991-1994. ICPSR 2258.
+  https://doi.org/10.3886/ICPSR02258.v5
+
+SECONDARY VALIDATION:
+  California Department of Alcohol and Drug Programs.
+  CALDATA, 1991-1993. ICPSR 2295.
+  https://doi.org/10.3886/ICPSR02295.v1
+
+NOTE: Per ICPSR Terms of Use (accepted 2026-03-19),
+these data are used solely for statistical analysis
+and aggregated reporting. No individual re-identification.
+Publications using these data must send citations to:
+bibliography@icpsr.umich.edu
+""")
