@@ -24,10 +24,12 @@ Binaries you provide (all local, all free):
 
 from __future__ import annotations
 import io
+import json
 import os
 import re
 import subprocess
 import tempfile
+import urllib.request
 import wave
 from array import array
 from dataclasses import dataclass
@@ -142,7 +144,18 @@ class NullBody:
     def close(self): pass
 
 
+def _strip_nonspeech(text: str) -> str:
+    """whisper labels NON-SPEECH as bracketed annotations — "(wind blowing)",
+    "[BLANK_AUDIO]", "*sighs*". Strip them so the companion ignores ambient noise;
+    if nothing lexical remains, the caller gets "" and skips the turn."""
+    for pat in (r"\([^)]*\)", r"\[[^\]]*\]", r"\*[^*]*\*"):
+        text = re.sub(pat, "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 class WhisperCppASR:
+    """Local ASR — runs whisper.cpp on this machine (the Pi)."""
+
     def __init__(self, binary: str | None = None, model: str | None = None):
         self.binary = binary or os.environ.get("WHISPER_BIN", "whisper-cli")
         self.model = model or os.environ.get("WHISPER_MODEL", "models/ggml-base.en.bin")
@@ -155,14 +168,46 @@ class WhisperCppASR:
                 [self.binary, "-m", self.model, "-f", f.name, "-nt", "-l", "en"],
                 capture_output=True, text=True, check=True,
             ).stdout
-        # -nt (no timestamps) prints just the transcript lines
         text = " ".join(line.strip() for line in out.splitlines() if line.strip())
-        # whisper labels NON-SPEECH as bracketed annotations — "(wind blowing)",
-        # "[BLANK_AUDIO]", "*sighs*". Strip them so the companion ignores ambient
-        # noise; if nothing lexical remains, return "" and the loop skips the turn.
-        for pat in (r"\([^)]*\)", r"\[[^\]]*\]", r"\*[^*]*\*"):
-            text = re.sub(pat, "", text)
-        return re.sub(r"\s+", " ", text).strip()
+        return _strip_nonspeech(text)
+
+
+class RemoteWhisperASR:
+    """Networked ASR — POST audio to a whisper.cpp `whisper-server` on another box
+    (e.g. the Studio). Moves *hearing* off the Pi to a fast machine, just like the
+    LLM, so a bigger/better model handles atypical registers (excited dog-voice!)
+    fast. Stdlib multipart POST — no extra deps on the Pi.
+
+    Server: whisper-server -m ggml-large-v3-turbo.bin --host 0.0.0.0 --port 8080
+    """
+
+    _BOUNDARY = "----companionAudio7f3a2b1c"
+
+    def __init__(self, url: str | None = None):
+        self.url = (url or os.environ.get("WHISPER_REMOTE_URL",
+                    "http://localhost:8080")).rstrip("/")
+
+    def transcribe(self, wav_bytes: bytes) -> str:
+        b = self._BOUNDARY
+        parts = [
+            f'--{b}\r\nContent-Disposition: form-data; name="file"; '
+            f'filename="a.wav"\r\nContent-Type: audio/wav\r\n\r\n'.encode(),
+            wav_bytes, b"\r\n",
+        ]
+        for k, v in (("response_format", "json"), ("temperature", "0.0")):
+            parts.append(f'--{b}\r\nContent-Disposition: form-data; name="{k}"'
+                         f'\r\n\r\n{v}\r\n'.encode())
+        parts.append(f'--{b}--\r\n'.encode())
+        req = urllib.request.Request(
+            f"{self.url}/inference", data=b"".join(parts),
+            headers={"Content-Type": f"multipart/form-data; boundary={b}"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            raw = r.read().decode(errors="replace")
+        try:
+            text = json.loads(raw).get("text", "")
+        except (ValueError, AttributeError):
+            text = raw          # server returned plain text
+        return _strip_nonspeech(text)
 
 
 class PiperTTS:

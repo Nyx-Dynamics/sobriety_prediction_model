@@ -21,14 +21,17 @@ Run:
 
 from __future__ import annotations
 import argparse
+import os
 from pathlib import Path
 
 try:
     from companion.orchestrator import Orchestrator, MemoryStore, Persona, LocalBackend, ClaudeBackend
-    from companion.voice import VoiceLoop, Mic, WhisperCppASR, PiperTTS, PresenceCamera
+    from companion.voice import (VoiceLoop, Mic, WhisperCppASR, RemoteWhisperASR,
+                                PiperTTS, PresenceCamera)
 except ImportError:  # pragma: no cover
     from .orchestrator import Orchestrator, MemoryStore, Persona, LocalBackend, ClaudeBackend
-    from .voice import VoiceLoop, Mic, WhisperCppASR, PiperTTS, PresenceCamera
+    from .voice import (VoiceLoop, Mic, WhisperCppASR, RemoteWhisperASR,
+                       PiperTTS, PresenceCamera)
 
 
 def main():
@@ -45,6 +48,9 @@ def main():
                     help="trailing silence (ms) that ends your turn — raise for more pause room")
     ap.add_argument("--lead-silence-ms", type=int, default=700,
                     help="silence prepended to speech to absorb HDMI/TV audio wake-up clipping")
+    ap.add_argument("--whisper-url", default=os.environ.get("WHISPER_REMOTE_URL"),
+                    help="if set (e.g. http://STUDIO_IP:8080), transcribe on a remote "
+                         "whisper-server instead of on the Pi")
     args = ap.parse_args()
 
     backend = ClaudeBackend() if args.backend == "claude" else LocalBackend()
@@ -56,9 +62,12 @@ def main():
         from companion.reachy import ReachyBody
         body = ReachyBody()
 
+    # ASR: remote (Studio whisper-server) if a URL is given, else local on the Pi.
+    asr = RemoteWhisperASR(args.whisper_url) if args.whisper_url else WhisperCppASR()
+
     loop = VoiceLoop(
         orchestrator=orch,
-        asr=WhisperCppASR(),
+        asr=asr,
         tts=PiperTTS(aplay_device=args.speaker, lead_silence_ms=args.lead_silence_ms),
         mic=Mic(device=args.mic_device, threshold=args.threshold, silence_ms=args.silence_ms),
         camera=PresenceCamera(enabled=args.camera),
