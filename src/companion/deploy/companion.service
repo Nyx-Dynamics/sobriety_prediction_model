@@ -1,0 +1,42 @@
+# Companion voice loop — boot service (Raspberry Pi 5, systemd)
+# ------------------------------------------------------------
+# Install:
+#   sudo install -Dm600 companion.env.example /etc/companion/companion.env
+#   sudoedit /etc/companion/companion.env          # fill in SUD_PHI_KEY etc.
+#   sudo cp companion.service /etc/systemd/system/companion.service
+#   # edit User=, WorkingDirectory=, ExecStart= paths below for your setup
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now companion.service
+#   journalctl -u companion -f                      # watch it
+#
+# The secret (SUD_PHI_KEY, which decrypts your memory) lives in the 0600
+# EnvironmentFile, NOT in this unit and NOT in the repo. Back the key up
+# somewhere safe — lose it and your memory is unreadable, by design.
+
+[Unit]
+Description=Private companion voice loop (local, closed system)
+# Only needed if the LLM runs on another box on your LAN; harmless otherwise.
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+# WorkingDirectory must be the repo's src/ so `companion` + `serving` import.
+WorkingDirectory=/home/%i/sobriety_prediction_model/src
+EnvironmentFile=/etc/companion/companion.env
+# Adjust the venv path and flags to taste (--reachy only once the robot is here).
+ExecStart=/home/%i/sobriety_prediction_model/.venv/bin/python -m companion.voice_chat --persona companion/persona.example.json
+Restart=on-failure
+RestartSec=3
+# Audio + (optional) camera access
+SupplementaryGroups=audio video
+# Modest hardening — it's a personal daemon holding PHI
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/%i/.companion
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

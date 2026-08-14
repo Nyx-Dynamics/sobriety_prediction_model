@@ -1,0 +1,6 @@
+# Serving layer only — installed on top of the project's root requirements.txt
+# (torch, numpy, scikit-learn already provided there).
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.6
+cryptography>=42.0   # Fernet — PHI encryption at rest (fail-closed; no key ⇒ no storage)

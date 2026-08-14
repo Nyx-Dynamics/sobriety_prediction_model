@@ -42,3 +42,6 @@ outputs/
 # Environment
 .env
 *.log
+
+# Audit log (pseudonymous, no PHI — but not for VCS)
+audit/

@@ -1,0 +1,3 @@
+# Companion-side adapter deps (distiller). Separate from the model server.
+anthropic>=0.92      # Claude SDK — structured-output extraction
+pydantic>=2.6        # extraction schema (also pulled in by anthropic)
