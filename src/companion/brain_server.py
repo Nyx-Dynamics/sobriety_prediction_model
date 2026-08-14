@@ -24,6 +24,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -35,14 +37,47 @@ except ImportError:  # pragma: no cover
     from .voice import RemoteWhisperASR
 
 
-def handle_turn(asr, orch, wav: bytes, node: str = "default") -> dict:
-    """Core turn: audio -> transcript -> orchestrated reply. Pure + testable.
-    Safety runs inside orch.turn(), so it's centralized here on the brain."""
+# ── wake word: she stays dormant until addressed by name ─────────────────────
+# Fuzzy set covers how whisper spells "Nyx" (Nicks/Nix/Knicks...). Override with
+# WAKE_WORDS="nyx,nix,..."; WAKE_WINDOW_S is the follow-up window (0 disables the
+# whole feature — always-listening, the old behavior).
+WAKE_WORDS = set(w.strip() for w in
+                 (os.environ.get("WAKE_WORDS") or "nyx,nix,nyxie,nicks,knicks,nix's").lower().split(","))
+WAKE_WINDOW_S = float(os.environ.get("WAKE_WINDOW_S", "45"))
+_engaged_until: dict[str, float] = {}   # node -> epoch it stays awake until
+
+
+def _detect_wake(text: str) -> tuple[bool, str]:
+    """(addressed?, message). True if a name-variant appears; strips a leading
+    'hey/hi <name>' so the rest is the actual message."""
+    tokens = re.findall(r"[a-z']+", text.lower())
+    if not any(t in WAKE_WORDS for t in tokens):
+        return False, text
+    names = "|".join(re.escape(w) for w in WAKE_WORDS)
+    cleaned = re.sub(rf"^\s*(hey|hi|ok|okay|yo|hello)?\s*(?:{names})\b[\s,.!?:;-]*",
+                     "", text, count=1, flags=re.IGNORECASE).strip()
+    return True, cleaned
+
+
+def handle_turn(asr, orch, wav: bytes, node: str = "default", now: float | None = None) -> dict:
+    """Core turn: audio -> transcript -> (wake gate) -> orchestrated reply.
+    Pure + testable. Safety runs inside orch.turn(), so it's centralized here."""
+    if now is None:
+        now = time.time()
     text = asr.transcribe(wav)
     if not text:
-        return {"reply": "", "heard": "", "crisis": False}
-    res = orch.turn(text)
-    return {"reply": res.reply, "heard": text, "crisis": res.crisis}
+        return {"reply": "", "heard": "", "crisis": False, "addressed": False}
+
+    engaged = WAKE_WINDOW_S <= 0 or _engaged_until.get(node, 0.0) > now
+    is_wake, cleaned = _detect_wake(text)
+    if not engaged and not is_wake:
+        return {"reply": "", "heard": text, "crisis": False, "addressed": False}
+
+    msg = (cleaned if is_wake else text).strip() or "(the user just said your name)"
+    res = orch.turn(msg)
+    if WAKE_WINDOW_S > 0:
+        _engaged_until[node] = now + WAKE_WINDOW_S   # keep the conversation open
+    return {"reply": res.reply, "heard": text, "crisis": res.crisis, "addressed": True}
 
 
 # module-level so the single-threaded server shares one orchestrator (turns
@@ -74,8 +109,10 @@ class Handler(BaseHTTPRequestHandler):
         wav = self.rfile.read(n)
         node = self.headers.get("X-Node", "default")
         out = handle_turn(ASR, ORCH, wav, node)
-        if out["heard"]:
+        if out["heard"] and out.get("addressed"):
             print(f"[{node}] you: {out['heard']}\n[{node}] {ORCH.persona.name}: {out['reply']}")
+        elif out["heard"]:
+            print(f"[{node}] (dormant, not addressed) heard: {out['heard']}")
         self._json(out)
 
     def log_message(self, *a):  # silence default request logging
