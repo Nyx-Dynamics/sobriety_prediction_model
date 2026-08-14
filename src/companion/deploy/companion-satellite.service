@@ -1,0 +1,28 @@
+# Nyx satellite (Pi) — ears + mouth, on boot. systemd unit.
+# Install:
+#   sudo cp companion-satellite.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now companion-satellite
+#   journalctl -u companion-satellite -f
+#
+# EnvironmentFile provides PIPER_BIN / PIPER_VOICE (the satellite ignores the rest).
+# When you swap the TV for a USB speaker, edit --speaker below to the new device
+# (find it with `aplay -l`), then: sudo systemctl daemon-reload && restart.
+[Unit]
+Description=Nyx companion satellite (ears + mouth)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pivot73
+EnvironmentFile=/home/pivot73/.companion.env
+WorkingDirectory=/home/pivot73/sobriety_prediction_model/src
+ExecStart=/home/pivot73/sobriety_prediction_model/.venv/bin/python -m companion.satellite --brain http://192.168.1.59:9000 --node bedside --mic-device plughw:2,0 --speaker plughw:1,0 --threshold 800 --silence-ms 2000 --lead-silence-ms 1500
+Restart=on-failure
+RestartSec=3
+SupplementaryGroups=audio
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

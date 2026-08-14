@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Studio launchd job: the brain (orchestrator + memory) on boot/login.
+     Install to ~/Library/LaunchAgents/com.nyx.brain.plist
+     Depends on whisper (com.nyx.whisper) + Ollama being up.
+     Edit /Users/acdstudpro paths if your username differs. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.nyx.brain</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/acdstudpro/sobriety_prediction_model/src/companion/deploy/nyx-brain.sh</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <!-- give whisper/ollama a moment on cold boot before first start -->
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/Users/acdstudpro/Library/Logs/nyx-brain.log</string>
+  <key>StandardErrorPath</key><string>/Users/acdstudpro/Library/Logs/nyx-brain.log</string>
+</dict>
+</plist>

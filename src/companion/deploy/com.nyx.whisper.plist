@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Studio launchd job: whisper-server (ASR) on boot/login.
+     Install to ~/Library/LaunchAgents/com.nyx.whisper.plist
+     Verify the whisper-server path with:  which whisper-server
+     Edit the two /Users/acdstudpro paths if your user/model differ. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.nyx.whisper</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/whisper-server</string>
+    <string>-m</string>
+    <string>/Users/acdstudpro/whisper-models/ggml-large-v3-turbo.bin</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>8080</string>
+    <string>-l</string><string>en</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/acdstudpro/Library/Logs/nyx-whisper.log</string>
+  <key>StandardErrorPath</key><string>/Users/acdstudpro/Library/Logs/nyx-whisper.log</string>
+</dict>
+</plist>
