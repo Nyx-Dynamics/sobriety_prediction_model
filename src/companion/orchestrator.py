@@ -206,7 +206,9 @@ class Persona:
 
     def system_prompt(self, memories: list[Memory], directive: str | None) -> str:
         mem_block = "\n".join(f"- {m.text}" for m in memories) or "- (nothing yet)"
-        dir_line = f"\n\nCurrent care posture: {directive}." if directive else ""
+        # ambient context (presence, care posture) — neutral so she uses it
+        # naturally, never announces it or talks about "sensors"/"notes"
+        dir_line = f"\n\nRight now: {directive}" if directive else ""
         # Front-load the address rule: small local models drift to third person when
         # fed third-person memory facts. Keep it short, blunt, and first.
         return (

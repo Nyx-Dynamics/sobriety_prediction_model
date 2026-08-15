@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Studio launchd job: UniFi Protect presence daemon (optional).
+     Install to ~/Library/LaunchAgents/com.nyx.presence.plist
+     Needs `uiprotect` installed + UNIFI_* config in ~/.config/companion/nyx.env.
+     If unconfigured it runs harmlessly and reports "nobody detected". -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.nyx.presence</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/acdstudpro/sobriety_prediction_model/src/companion/deploy/nyx-presence.sh</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/acdstudpro/Library/Logs/nyx-presence.log</string>
+  <key>StandardErrorPath</key><string>/Users/acdstudpro/Library/Logs/nyx-presence.log</string>
+</dict>
+</plist>

@@ -26,15 +26,29 @@ import json
 import os
 import re
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 try:
     from companion.orchestrator import Orchestrator, MemoryStore, Persona, LocalBackend
     from companion.voice import RemoteWhisperASR
+    from companion.presence import presence_sentence
 except ImportError:  # pragma: no cover
     from .orchestrator import Orchestrator, MemoryStore, Persona, LocalBackend
     from .voice import RemoteWhisperASR
+    from .presence import presence_sentence
+
+# Optional presence daemon (companion.presence). Best-effort; None if not running.
+PRESENCE_URL = os.environ.get("PRESENCE_URL", "http://localhost:9100/presence")
+
+
+def _presence_note() -> str | None:
+    try:
+        with urllib.request.urlopen(PRESENCE_URL, timeout=1) as r:
+            return presence_sentence(json.loads(r.read())) or None
+    except Exception:
+        return None   # daemon not up / unreachable -> no ambient context, fine
 
 
 # ── wake word: she stays dormant until addressed by name ─────────────────────
@@ -59,9 +73,11 @@ def _detect_wake(text: str) -> tuple[bool, str]:
     return True, cleaned
 
 
-def handle_turn(asr, orch, wav: bytes, node: str = "default", now: float | None = None) -> dict:
+def handle_turn(asr, orch, wav: bytes, node: str = "default", now: float | None = None,
+                context: str | None = None) -> dict:
     """Core turn: audio -> transcript -> (wake gate) -> orchestrated reply.
-    Pure + testable. Safety runs inside orch.turn(), so it's centralized here."""
+    Pure + testable. Safety runs inside orch.turn(); `context` is ambient info
+    (e.g. presence) folded in only when she actually responds."""
     if now is None:
         now = time.time()
     text = asr.transcribe(wav)
@@ -74,7 +90,7 @@ def handle_turn(asr, orch, wav: bytes, node: str = "default", now: float | None 
         return {"reply": "", "heard": text, "crisis": False, "addressed": False}
 
     msg = (cleaned if is_wake else text).strip() or "(the user just said your name)"
-    res = orch.turn(msg)
+    res = orch.turn(msg, directive=context)
     if WAKE_WINDOW_S > 0:
         _engaged_until[node] = now + WAKE_WINDOW_S   # keep the conversation open
     return {"reply": res.reply, "heard": text, "crisis": res.crisis, "addressed": True}
@@ -108,7 +124,7 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         wav = self.rfile.read(n)
         node = self.headers.get("X-Node", "default")
-        out = handle_turn(ASR, ORCH, wav, node)
+        out = handle_turn(ASR, ORCH, wav, node, context=_presence_note())
         if out["heard"] and out.get("addressed"):
             print(f"[{node}] you: {out['heard']}\n[{node}] {ORCH.persona.name}: {out['reply']}")
         elif out["heard"]:

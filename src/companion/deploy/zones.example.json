@@ -1,0 +1,8 @@
+{
+  "_comment": "Map each UniFi Protect camera (by its name in Protect, or its id) to a room. Copy to ~/.config/companion/zones.json and fill in YOUR camera names.",
+  "Front Door": "entryway",
+  "Kitchen": "kitchen",
+  "Office": "office",
+  "Living Room": "livingroom",
+  "Bedroom": "bedroom"
+}
