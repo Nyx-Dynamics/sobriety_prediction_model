@@ -34,10 +34,16 @@ try:
     from companion.orchestrator import Orchestrator, MemoryStore, Persona, LocalBackend
     from companion.voice import RemoteWhisperASR
     from companion.presence import presence_sentence
+    from companion.link import LinkCipher
 except ImportError:  # pragma: no cover
     from .orchestrator import Orchestrator, MemoryStore, Persona, LocalBackend
     from .voice import RemoteWhisperASR
     from .presence import presence_sentence
+    from .link import LinkCipher
+
+# Shared-key encryption for the node<->brain hop (opt-in via COMPANION_LINK_KEY).
+# Per-request: decrypt if the node marked it encrypted; a plaintext Pi still works.
+LINK = LinkCipher()
 
 # Optional presence daemon (companion.presence). Best-effort; None if not running.
 PRESENCE_URL = os.environ.get("PRESENCE_URL", "http://localhost:9100/presence")
@@ -147,10 +153,14 @@ ASR = None
 
 
 class Handler(BaseHTTPRequestHandler):
-    def _json(self, obj, code=200):
+    def _json(self, obj, code=200, headers=None):
         body = json.dumps(obj).encode()
+        if headers and headers.get("X-Enc") == "1":
+            body = LINK.wrap(body)          # encrypt the reply for the wire
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -166,14 +176,27 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         n = int(self.headers.get("Content-Length", 0))
-        wav = self.rfile.read(n)
+        raw = self.rfile.read(n)
+        enc = self.headers.get("X-Enc") == "1"
+        if enc:
+            if not LINK.on:
+                self.send_error(400, "encrypted node but brain has no COMPANION_LINK_KEY")
+                return
+            try:
+                wav = LINK.unwrap(raw)
+            except Exception:
+                self.send_error(400, "bad link ciphertext")
+                return
+        else:
+            wav = raw                       # plaintext node (e.g. a bare Pi)
         node = self.headers.get("X-Node", "default")
         out = handle_turn(ASR, ORCH, wav, node, context_provider=_context_provider)
+        resp_headers = {"X-Enc": "1"} if enc else None
         if out["heard"] and out.get("addressed"):
             print(f"[{node}] you: {out['heard']}\n[{node}] {ORCH.persona.name}: {out['reply']}")
         elif out["heard"]:
             print(f"[{node}] (dormant, not addressed) heard: {out['heard']}")
-        self._json(out)
+        self._json(out, headers=resp_headers)
 
     def log_message(self, *a):  # silence default request logging
         pass

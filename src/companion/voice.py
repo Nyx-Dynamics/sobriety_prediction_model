@@ -27,7 +27,9 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.request
 import wave
@@ -76,17 +78,27 @@ class Mic:
         self.max_ms = max_ms
         self.min_ms = min_ms
 
-    def _arecord(self):
-        cmd = ["arecord", "-q", "-f", "S16_LE", "-r", str(SAMPLE_RATE),
-               "-c", "1", "-t", "raw"]
-        if self.device:
-            cmd += ["-D", self.device]
-        return subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    def _capture(self):
+        """OS-aware raw-PCM capture to stdout (S16_LE, 16 kHz, mono) — the Python
+        VAD below is identical on every platform; only the source binary differs.
+          * Linux  → arecord (ALSA), honoring --mic-device (e.g. plughw:2,0)
+          * macOS  → sox from the SYSTEM DEFAULT input device (set it in
+            System Settings → Sound → Input). `brew install sox`. On macOS the
+            --mic-device flag is ignored; picking the mic = choosing the default."""
+        if sys.platform == "darwin":
+            cmd = ["sox", "-q", "-d", "-t", "raw", "-r", str(SAMPLE_RATE),
+                   "-c", "1", "-b", "16", "-e", "signed-integer", "-L", "-"]
+        else:
+            cmd = ["arecord", "-q", "-f", "S16_LE", "-r", str(SAMPLE_RATE),
+                   "-c", "1", "-t", "raw"]
+            if self.device:
+                cmd += ["-D", self.device]
+        return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
     def record_until_silence(self) -> bytes:
         """Stream from the mic; start on speech, stop after trailing silence.
         Returns 16 kHz mono WAV bytes ready for whisper."""
-        proc = self._arecord()
+        proc = self._capture()
         frames, started, silence = [], False, 0
         speech_ms = 0
         try:
@@ -241,12 +253,54 @@ class PiperTTS:
                            input=text, text=True, check=True)
             if self.lead_silence_ms:
                 self._prepend_silence(path, self.lead_silence_ms)
-            cmd = ["aplay", "-q"]
-            if self.aplay_device:
-                cmd += ["-D", self.aplay_device]
-            subprocess.run(cmd + [path], check=True)
+            if sys.platform == "darwin":
+                cmd = ["afplay", path]        # built-in; routes to default output
+            else:
+                cmd = ["aplay", "-q"] + (["-D", self.aplay_device] if self.aplay_device else [])
+                cmd += [path]
+            subprocess.run(cmd, check=True)
         finally:
             os.unlink(path)
+
+
+class MacSayTTS:
+    """Zero-setup macOS TTS via the built-in `say`. No piper binary, no voice
+    model — routes to the system DEFAULT output device (set it to the room
+    speaker). NOTE: a different voice from Piper, so a room on `say` won't match
+    the bedroom PiCar's voice — install piper on the Macs too if you want ONE
+    consistent voice everywhere (then this fallback isn't used)."""
+
+    def __init__(self, voice: str | None = None, rate: int | None = None):
+        self.voice = voice or os.environ.get("SAY_VOICE")     # e.g. "Samantha"
+        self.rate = rate or (int(os.environ["SAY_RATE"]) if os.environ.get("SAY_RATE") else None)
+
+    def say(self, text: str) -> None:
+        cmd = ["say"]
+        if self.voice:
+            cmd += ["-v", self.voice]
+        if self.rate:
+            cmd += ["-r", str(self.rate)]
+        subprocess.run(cmd + [text], check=True)
+
+
+def _piper_ready(voice: str | None = None, binary: str | None = None) -> bool:
+    b = binary or os.environ.get("PIPER_BIN", "piper")
+    v = voice or os.environ.get("PIPER_VOICE", "voices/en_US-amy-medium.onnx")
+    return bool(shutil.which(b)) and Path(v).exists()
+
+
+def make_tts(kind: str = "auto", aplay_device: str | None = None,
+             lead_silence_ms: int = 700, voice: str | None = None):
+    """Pick a TTS: 'piper', 'say', or 'auto' (piper if it's set up here, else
+    macOS `say`, else piper — which errors loudly if missing on Linux, as before)."""
+    kind = (kind or "auto").lower()
+    if kind == "say":
+        return MacSayTTS()
+    if kind == "piper" or _piper_ready(voice):
+        return PiperTTS(voice=voice, aplay_device=aplay_device, lead_silence_ms=lead_silence_ms)
+    if sys.platform == "darwin":
+        return MacSayTTS()
+    return PiperTTS(voice=voice, aplay_device=aplay_device, lead_silence_ms=lead_silence_ms)
 
 
 # ══════════════════════════════════════════════════════════════════════════

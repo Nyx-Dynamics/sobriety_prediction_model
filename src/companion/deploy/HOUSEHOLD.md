@@ -146,3 +146,40 @@ autonomous approach is gated on obstacle-safe presence/vision we haven't built.
 `approach()`/`orient()` are stubbed for that day. The onboard mic is mono (no
 sound-direction), so she faces forward attentively rather than turning toward your
 voice — a mic array or presence bearing is what would unlock true orient-to-voice.
+
+---
+
+# macOS room nodes (office = Studio, kitchen = Mini) + encrypted hop
+
+A Mac can *be* a room node — captures and speaks locally, ships audio to the brain
+over an encrypted LAN hop. Same `satellite`, macOS backends auto-selected (`sox`
+capture, `afplay`/`say` playback).
+
+### Per-Mac setup
+```bash
+brew install sox                     # mic capture (playback is built-in afplay/say)
+# System Settings → Sound: set Input = room mic, Output = room speaker
+```
+
+### Encrypted hop (do once, shared value everywhere)
+```bash
+python3 -c "from companion.link import LinkCipher; print(LinkCipher.generate_key())"
+#  put the SAME value in the brain's env AND every node's env, then restart the brain:
+export COMPANION_LINK_KEY=<that-value>
+```
+Node→brain voice is then Fernet-encrypted on the wire; the reply comes back
+encrypted. A bare Pi with no key still works (plaintext) against the same brain.
+
+### Run
+```bash
+# office — on the Studio itself, brain is localhost (no network, her fastest room)
+COMPANION_BRAIN_URL=http://localhost:9000 python3 -m companion.satellite --node office
+
+# kitchen — on the Mini, brain over ethernet
+COMPANION_BRAIN_URL=http://192.168.1.59:9000 python3 -m companion.satellite --node kitchen
+```
+
+Voice defaults to macOS `say` (zero-setup, but a *different* voice than the PiCar's
+Piper). For ONE voice in every room, install piper + the same `.onnx` on the Macs —
+`--tts auto` picks it up automatically. `--lead-silence-ms` defaults to 0 on macOS
+(no HDMI wake-up clip over Thunderbolt/USB).
