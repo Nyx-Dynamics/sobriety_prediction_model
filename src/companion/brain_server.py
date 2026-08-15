@@ -51,6 +51,47 @@ def _presence_note() -> str | None:
         return None   # daemon not up / unreachable -> no ambient context, fine
 
 
+# Optional reference index (companion.reference). She looks in your DOCUMENTS only
+# when you ask her to find something; excerpts go into the per-turn prompt, never
+# into her memory. Best-effort; None if the daemon isn't running.
+REFERENCE_URL = os.environ.get("REFERENCE_URL", "http://localhost:9200/search")
+_LOOKUP_RE = re.compile(
+    r"\b(look up|look for|find|search|pull up|dig up|what did|what does|what's in|"
+    r"whats in|remind me what|in my (files?|docs?|documents?|records?|notes?|"
+    r"filing|lease|results?|report|paperwork|emails?))\b", re.IGNORECASE)
+
+
+def _reference_context(query: str) -> str | None:
+    if not _LOOKUP_RE.search(query):
+        return None
+    try:
+        from urllib.parse import quote
+        with urllib.request.urlopen(f"{REFERENCE_URL}?q={quote(query)}", timeout=4) as r:
+            hits = json.loads(r.read()).get("hits", [])
+    except Exception:
+        return None
+    if not hits:
+        return None
+    lines = [f"- from \"{h['source']}\": {h['text'][:400]}" for h in hits[:4]]
+    return ("The user is asking you to recall something from their own documents. "
+            "Use these excerpts to answer and name the source file; if they don't "
+            "actually answer it, say you couldn't find it in their files:\n"
+            + "\n".join(lines))
+
+
+def _context_provider(query: str) -> str | None:
+    """Per-turn ambient context: presence (always) + document excerpts (on lookup).
+    Goes into the system prompt only — never the message, history, or memory."""
+    parts = []
+    p = _presence_note()
+    if p:
+        parts.append(p)
+    r = _reference_context(query)
+    if r:
+        parts.append(r)
+    return "\n\n".join(parts) or None
+
+
 # ── wake word: she stays dormant until addressed by name ─────────────────────
 # Fuzzy set covers how whisper spells "Nyx" (Nicks/Nix/Knicks...). Override with
 # WAKE_WORDS="nyx,nix,..."; WAKE_WINDOW_S is the follow-up window (0 disables the
@@ -74,10 +115,12 @@ def _detect_wake(text: str) -> tuple[bool, str]:
 
 
 def handle_turn(asr, orch, wav: bytes, node: str = "default", now: float | None = None,
-                context: str | None = None) -> dict:
+                context_provider=None) -> dict:
     """Core turn: audio -> transcript -> (wake gate) -> orchestrated reply.
-    Pure + testable. Safety runs inside orch.turn(); `context` is ambient info
-    (e.g. presence) folded in only when she actually responds."""
+    Pure + testable. Safety runs inside orch.turn(). `context_provider(query)`
+    supplies ambient info (presence + document lookup) for THIS turn only — folded
+    into the system prompt, never the message/history/memory — and only when she
+    actually responds."""
     if now is None:
         now = time.time()
     text = asr.transcribe(wav)
@@ -90,6 +133,7 @@ def handle_turn(asr, orch, wav: bytes, node: str = "default", now: float | None 
         return {"reply": "", "heard": text, "crisis": False, "addressed": False}
 
     msg = (cleaned if is_wake else text).strip() or "(the user just said your name)"
+    context = context_provider(msg) if context_provider else None
     res = orch.turn(msg, directive=context)
     if WAKE_WINDOW_S > 0:
         _engaged_until[node] = now + WAKE_WINDOW_S   # keep the conversation open
@@ -124,7 +168,7 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         wav = self.rfile.read(n)
         node = self.headers.get("X-Node", "default")
-        out = handle_turn(ASR, ORCH, wav, node, context=_presence_note())
+        out = handle_turn(ASR, ORCH, wav, node, context_provider=_context_provider)
         if out["heard"] and out.get("addressed"):
             print(f"[{node}] you: {out['heard']}\n[{node}] {ORCH.persona.name}: {out['reply']}")
         elif out["heard"]:

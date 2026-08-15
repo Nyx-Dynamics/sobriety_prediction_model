@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Studio launchd job: document reference search daemon (:9200).
+     Install to ~/Library/LaunchAgents/com.nyx.reference.plist
+     Build the index first (see REFERENCE section of HOUSEHOLD.md). If there's no
+     index yet it exits; load this once the index exists. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.nyx.reference</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/acdstudpro/sobriety_prediction_model/src/companion/deploy/nyx-reference.sh</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/acdstudpro/Library/Logs/nyx-reference.log</string>
+  <key>StandardErrorPath</key><string>/Users/acdstudpro/Library/Logs/nyx-reference.log</string>
+</dict>
+</plist>
