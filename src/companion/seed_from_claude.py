@@ -114,7 +114,8 @@ def _conversation_transcripts(export_path: str, limit: int | None):
 
 
 def build_distill(export_path: str, backend, limit: int | None,
-                  max_chars: int = 12000) -> list[dict]:
+                  max_chars: int = 12000, out_path: str | None = None,
+                  checkpoint_every: int = 25) -> list[dict]:
     facts = []
     convos = _conversation_transcripts(export_path, limit)
     for i, conv in enumerate(convos, 1):
@@ -124,14 +125,19 @@ def build_distill(export_path: str, backend, limit: int | None,
         try:
             out = backend.generate(_DISTILL_SYSTEM, [{"role": "user", "content": transcript}])
         except Exception as e:
-            print(f"  [skip {i}/{len(convos)}] {conv['name'][:40]}: {e}")
+            print(f"  [skip {i}/{len(convos)}] {conv['name'][:40]}: {e}", flush=True)
             continue
         for line in out.splitlines():
             line = line.strip().lstrip("-•* ").strip()
             if len(line) > 8:
                 facts.append({"text": line[:400], "importance": 0.65,
                               "tags": ["claude-history", "distilled"], "ts": conv["ts"]})
-        print(f"  [{i}/{len(convos)}] {conv['name'][:40]} → {len(facts)} facts so far")
+        print(f"  [{i}/{len(convos)}] {conv['name'][:40]} → {len(facts)} facts so far", flush=True)
+        # checkpoint so a long/overnight run that gets interrupted still saves
+        if out_path and i % checkpoint_every == 0:
+            Path(out_path).write_text(json.dumps(facts, indent=2))
+    if out_path:
+        Path(out_path).write_text(json.dumps(facts, indent=2))
     return facts
 
 
@@ -236,8 +242,8 @@ def main():
         except ImportError:
             from .orchestrator import LocalBackend, ClaudeBackend
         backend = ClaudeBackend() if args.backend == "claude" else LocalBackend()
-        print(f"Distilling with {args.backend} backend...")
-        facts = build_distill(args.export, backend, args.limit)
+        print(f"Distilling with {args.backend} backend (checkpointing to {args.out})...")
+        facts = build_distill(args.export, backend, args.limit, out_path=args.out)
 
     Path(args.out).write_text(json.dumps(facts, indent=2))
     print(f"\nWrote {len(facts)} facts → {args.out}")
