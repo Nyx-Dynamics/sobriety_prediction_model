@@ -27,6 +27,7 @@ Env: REFERENCE_DIR(=~/.companion/reference), REFERENCE_EMBED_MODEL(=nomic-embed-
 
 from __future__ import annotations
 import json
+import logging
 import os
 import re
 import sys
@@ -35,6 +36,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import numpy as np
+
+# pypdf logs a WARNING per malformed object ("Ignoring wrong pointing object",
+# "Object N not defined", etc.) — harmless recovery noise that would flood the
+# build log to gigabytes over thousands of real-world PDFs. We already swallow
+# per-file failures in extract_text(), so silence pypdf's logger entirely.
+logging.getLogger("pypdf").setLevel(logging.CRITICAL)
 
 try:
     from serving.privacy import Encryptor
