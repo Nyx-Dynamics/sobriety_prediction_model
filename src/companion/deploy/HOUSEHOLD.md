@@ -107,3 +107,42 @@ Notes:
   actively chatting. ~8,200 PDFs is a long job; it checkpoints.
 - Scanned/image-only PDFs won't extract text without OCR (not built yet — a later
   add: run them through a local OCR pass before indexing).
+
+---
+
+# Embodiment — PiCar-X body (`picar_body.py`)
+
+Her mobile body. The PiCar-X's Pi runs the **satellite** (ears+mouth to the Studio
+brain) *plus* the `PiCarBody` expression layer — she looks at you, freezes to
+listen, and nods when she speaks. All thinking still happens on the Studio; the car
+is a body we puppet, never a SunFounder cloud login.
+
+### One-time (on the car's Pi)
+```bash
+# 1. Assemble per SunFounder's tutorials. CRITICAL: zero the servos (center at 0)
+#    BEFORE attaching the arms/head, or the angles will be off.
+# 2. Install ONLY the hardware library (ignore their AI app entirely):
+cd ~ && git clone https://github.com/sunfounder/picar-x.git -b v2.0
+cd picar-x && sudo python3 setup.py install       # pulls robot-hat
+#    (follow SunFounder's i2c/audio enable steps in their docs)
+# 3. Sanity-test the body with no brain, watch the gestures:
+cd ~/sobriety_prediction_model/src
+PICAR_DEBUG=1 python3 -c "from companion.picar_body import PiCarBody; \
+import time; b=PiCarBody(debug=True); \
+[ (h(), time.sleep(0.6)) for h in (b.on_listen,b.on_think,b.on_speak,b.on_idle) ]; b.close()"
+```
+
+### Run her with the body
+```bash
+export COMPANION_BRAIN_URL=http://192.168.1.59:9000
+python3 -m companion.satellite --node rover --body picar \
+  --mic-device plughw:2,0 --speaker plughw:1,0 --silence-ms 2000
+```
+Same satellite as any room — `--body picar` just adds the head expression. Wake her
+with "Hey Nyx"; she perks and nods, freezes while you talk, settles when you're done.
+
+**By design she does NOT drive around** — the head/camera is the expressive face;
+autonomous approach is gated on obstacle-safe presence/vision we haven't built.
+`approach()`/`orient()` are stubbed for that day. The onboard mic is mono (no
+sound-direction), so she faces forward attentively rather than turning toward your
+voice — a mic array or presence bearing is what would unlock true orient-to-voice.

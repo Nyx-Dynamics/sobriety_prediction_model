@@ -26,8 +26,10 @@ from pathlib import Path
 
 try:
     from companion.voice import Mic, PiperTTS
+    from companion.picar_body import make_body
 except ImportError:  # pragma: no cover
     from .voice import Mic, PiperTTS
+    from .picar_body import make_body
 
 
 def post_turn(brain_url: str, wav: bytes, node: str, timeout: int = 120) -> dict:
@@ -49,28 +51,40 @@ def main():
     ap.add_argument("--threshold", type=float, default=500.0)
     ap.add_argument("--silence-ms", type=int, default=1500)
     ap.add_argument("--lead-silence-ms", type=int, default=700)
+    ap.add_argument("--body", default=os.environ.get("COMPANION_BODY", "none"),
+                    choices=["none", "picar"],
+                    help="physical expression layer (picar = SunFounder PiCar-X)")
     args = ap.parse_args()
 
     mic = Mic(device=args.mic_device, threshold=args.threshold, silence_ms=args.silence_ms)
     tts = PiperTTS(aplay_device=args.speaker, lead_silence_ms=args.lead_silence_ms)
-    print(f"[satellite:{args.node}] -> {args.brain}   Ctrl-C to stop.")
+    body = make_body(args.body, debug=True)   # NullBody unless --body picar
+    print(f"[satellite:{args.node}] -> {args.brain}   body={args.body}   Ctrl-C to stop.")
     try:
         while True:
+            body.on_listen()                       # freeze + attend while the mic is open
             wav = mic.record_until_silence()
+            body.on_think()                        # captured -> ask the brain
             try:
                 res = post_turn(args.brain, wav, args.node)
             except Exception as e:
                 print(f"  [brain unreachable: {e}]")
+                body.on_idle()
                 continue
             reply = (res.get("reply") or "").strip()
             if not reply:
+                body.on_idle()                     # not addressed / nothing to say -> settle
                 continue
             heard = res.get("heard", "")
             print(f"you › {heard}")
             print(f"› {reply}")
+            body.on_speak()                        # perk + nod, then speak
             tts.say(reply)
+            body.on_idle()
     except KeyboardInterrupt:
         print("\ntake care.")
+    finally:
+        body.close()
 
 
 if __name__ == "__main__":
