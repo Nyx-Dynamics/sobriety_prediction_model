@@ -34,8 +34,20 @@ class LinkCipher:
         k = key if key is not None else os.environ.get(self.ENV)
         if isinstance(k, str):
             k = k.encode()
-        self._f = Fernet(k) if (k and Fernet) else None
-        self.reason = "" if self._f else ("cryptography missing" if not Fernet else "no key set")
+        self._f = None
+        if not Fernet:
+            self.reason = "cryptography missing"
+        elif not k:
+            self.reason = "no key set"
+        else:
+            try:
+                self._f = Fernet(k)
+                self.reason = ""
+            except Exception as e:
+                # A mistyped/truncated key must NEVER crash the brain (its module-level
+                # LinkCipher() would take the whole server down). Fall back to plaintext,
+                # loudly — the state shows in the node's startup line, not in a traceback.
+                self.reason = f"invalid key ({type(e).__name__}) -> plaintext"
 
     @property
     def on(self) -> bool:
