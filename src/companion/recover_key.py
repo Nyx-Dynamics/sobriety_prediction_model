@@ -24,6 +24,7 @@ from __future__ import annotations
 import base64
 import os
 import shutil
+import sys
 from pathlib import Path
 
 try:
@@ -33,7 +34,8 @@ except ImportError:  # pragma: no cover
     print("cryptography not installed (pip install cryptography)")
     raise SystemExit(1)
 
-B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+# both alphabets: url-safe (-_) AND standard (+/) — keys may use either
+B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_+/"
 NYX_ENV = Path(os.environ.get("COMPANION_NYX_ENV",
                               str(Path.home() / ".config" / "companion" / "nyx.env")))
 MEMORY = Path(os.environ.get("COMPANION_MEMORY",
@@ -122,9 +124,16 @@ def main():
         print(f"no memory file at {MEMORY} — nothing to test against.")
         return
     blob = MEMORY.read_bytes()
-    partial, lines = _read_key(NYX_ENV)
+    _, lines = _read_key(NYX_ENV)
+    # a candidate base key can be passed as an argument (e.g. a second key you have
+    # written down) — we search around IT instead of the one in nyx.env
+    if len(sys.argv) > 1:
+        partial = sys.argv[1].strip()
+        print(f"searching around the key you passed ({len(partial)} chars).", flush=True)
+    else:
+        partial, lines = _read_key(NYX_ENV)
     if not partial:
-        print(f"no SUD_PHI_KEY line found in {NYX_ENV}.")
+        print(f"no SUD_PHI_KEY line found in {NYX_ENV} and none passed as an argument.")
         return
     print(f"current key: {len(partial)} chars. searching against "
           f"{MEMORY.name} ({len(blob):,} bytes) ...", flush=True)
