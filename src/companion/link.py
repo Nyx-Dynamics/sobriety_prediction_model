@@ -29,9 +29,18 @@ except Exception:   # cryptography not installed on this node
 
 class LinkCipher:
     ENV = "COMPANION_LINK_KEY"
+    ENV_PASS = "COMPANION_LINK_PASSPHRASE"
 
     def __init__(self, key: str | bytes | None = None):
         k = key if key is not None else os.environ.get(self.ENV)
+        # No explicit 44-char key? Derive one from a shared PASSPHRASE. For machines
+        # that can't copy-paste across a KVM/monitor switch, you just type the SAME
+        # human phrase on each — deterministic, so identical phrase -> identical key
+        # everywhere. Far less error-prone than transcribing base64 by hand.
+        if not k:
+            phrase = os.environ.get(self.ENV_PASS)
+            if phrase:
+                k = self.key_from_passphrase(phrase)
         if isinstance(k, str):
             k = k.encode()
         self._f = None
@@ -58,6 +67,18 @@ class LinkCipher:
 
     def unwrap(self, data: bytes) -> bytes:
         return self._f.decrypt(data) if self._f else data
+
+    @staticmethod
+    def key_from_passphrase(passphrase: str) -> bytes:
+        """Derive a valid Fernet key from a human passphrase (PBKDF2, fixed app salt).
+        Same passphrase -> same key on every machine, so a mistyped 44-char key stops
+        being the failure mode. Stdlib only. Fixed salt is fine for this threat model
+        (voice on your own wired LAN); use a non-trivial phrase, no spaces needed."""
+        import hashlib
+        import base64
+        dk = hashlib.pbkdf2_hmac("sha256", passphrase.encode("utf-8"),
+                                 b"nyx-companion-link-v1", 200_000, dklen=32)
+        return base64.urlsafe_b64encode(dk)
 
     @staticmethod
     def generate_key() -> str:
