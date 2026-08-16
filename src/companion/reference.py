@@ -188,7 +188,8 @@ def main():
         ReferenceIndex().build(roots)
     elif len(sys.argv) >= 2 and sys.argv[1] == "serve":
         idx = ReferenceIndex().load()
-        print(f"[reference] {len(idx.chunks)} chunks; serving /search on 127.0.0.1:{PORT}")
+        print(f"[reference] {len(idx.chunks)} chunks; serving /search on 127.0.0.1:{PORT}",
+              flush=True)
         HTTPServer(("127.0.0.1", PORT), _handler(idx)).serve_forever()
     else:
         print(__doc__)

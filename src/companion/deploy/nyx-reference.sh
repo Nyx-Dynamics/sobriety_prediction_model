@@ -4,5 +4,6 @@
 set -a
 source "$HOME/.config/companion/nyx.env"
 set +a
+export PYTHONUNBUFFERED=1        # flush logs live so `tail` isn't misleadingly empty
 cd "$HOME/sobriety_prediction_model/src" || exit 1
 exec "$HOME/sobriety_prediction_model/.venv/bin/python" -m companion.reference serve

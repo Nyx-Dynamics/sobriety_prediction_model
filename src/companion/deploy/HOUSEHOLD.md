@@ -183,3 +183,47 @@ Voice defaults to macOS `say` (zero-setup, but a *different* voice than the PiCa
 Piper). For ONE voice in every room, install piper + the same `.onnx` on the Macs —
 `--tts auto` picks it up automatically. `--lead-silence-ms` defaults to 0 on macOS
 (no HDMI wake-up clip over Thunderbolt/USB).
+
+---
+
+# Kitchen Mini — from a bare machine (quickstart)
+
+The Mini is a *dumb node*: it captures audio, ships it to the Studio brain over an
+encrypted Ethernet hop, and speaks the reply. The only pip dep a node needs is
+`cryptography` (for the hop) — no numpy/torch/model.
+
+### One-time on the Mini
+```bash
+# Homebrew (if not already there), then sox for mic capture:
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install sox
+
+# the code + a tiny venv:
+git clone https://github.com/Nyx-Dynamics/sobriety_prediction_model.git ~/sobriety_prediction_model
+cd ~/sobriety_prediction_model
+python3 -m venv .venv
+.venv/bin/pip install cryptography
+
+# System Settings → Sound:  Input = kitchen USB mic,  Output = kitchen speaker
+```
+
+### Encrypted hop (do the key on the STUDIO, share the value)
+```bash
+# on the Studio — generate once:
+~/sobriety_prediction_model/.venv/bin/python -c \
+  "from companion.link import LinkCipher; print(LinkCipher.generate_key())"
+# add COMPANION_LINK_KEY=<that value> to the Studio's ~/.config/companion/nyx.env,
+# then restart the brain so it can decrypt:
+launchctl kickstart -k gui/$(id -u)/com.nyx.brain
+```
+
+### Run the kitchen node (on the Mini, brain over Ethernet)
+```bash
+cd ~/sobriety_prediction_model/src
+export COMPANION_LINK_KEY=<same value as the brain>
+COMPANION_BRAIN_URL=http://192.168.1.59:9000 \
+  ../.venv/bin/python -m companion.satellite --node kitchen
+```
+Startup line should read `link=encrypted`. Say "Hey Nyx" and she answers through the
+kitchen speaker — voice over the wire is now ciphertext. (macOS `say` voice until you
+put piper on the Mini too.) Once it works, we make it boot-managed with a launchd job.
