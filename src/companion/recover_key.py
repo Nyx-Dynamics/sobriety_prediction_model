@@ -124,31 +124,36 @@ def main():
         print(f"no memory file at {MEMORY} — nothing to test against.")
         return
     blob = MEMORY.read_bytes()
-    _, lines = _read_key(NYX_ENV)
-    # a candidate base key can be passed as an argument (e.g. a second key you have
-    # written down) — we search around IT instead of the one in nyx.env
+    current, lines = _read_key(NYX_ENV)      # whatever nyx.env currently holds
+    # a candidate base key can be passed as an argument (e.g. a key you found in
+    # shell history) — we search around IT instead of the one in nyx.env
     if len(sys.argv) > 1:
         partial = sys.argv[1].strip()
         print(f"searching around the key you passed ({len(partial)} chars).", flush=True)
     else:
-        partial, lines = _read_key(NYX_ENV)
+        partial = current
     if not partial:
         print(f"no SUD_PHI_KEY line found in {NYX_ENV} and none passed as an argument.")
         return
-    print(f"current key: {len(partial)} chars. searching against "
+    print(f"searching from a {len(partial)}-char key against "
           f"{MEMORY.name} ({len(blob):,} bytes) ...", flush=True)
     key = recover(partial, blob)
     if not key:
         print("\ncould NOT recover with a one- or two-character fix.")
         print("-> fall back to a fresh key + re-seed memory from your source files.")
         return
-    if key == partial:
-        print("the current key already works — no change needed.")
+    if key == current:
+        print("nyx.env already holds the working key — no change needed.")
         return
-    shutil.copy2(NYX_ENV, str(NYX_ENV) + ".bak")
-    new = [("SUD_PHI_KEY=" + key) if ln.startswith("SUD_PHI_KEY=") else ln for ln in lines]
+    # write the working key into nyx.env (replacing the broken one, or adding it)
+    if NYX_ENV.exists():
+        shutil.copy2(NYX_ENV, str(NYX_ENV) + ".bak")
+    if any(ln.startswith("SUD_PHI_KEY=") for ln in lines):
+        new = [("SUD_PHI_KEY=" + key) if ln.startswith("SUD_PHI_KEY=") else ln for ln in lines]
+    else:
+        new = ["SUD_PHI_KEY=" + key] + lines
     NYX_ENV.write_text("\n".join(new) + "\n")
-    print(f"\n  RECOVERED. Full 44-char key written to {NYX_ENV}")
+    print(f"\n  RECOVERED. Working key written to {NYX_ENV}")
     print(f"  (old file backed up at {NYX_ENV}.bak)")
     print("\nNow restart the brain:")
     print("  launchctl kickstart -k gui/$(id -u)/com.nyx.brain   (or bootstrap if needed)")
