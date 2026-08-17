@@ -227,3 +227,39 @@ COMPANION_BRAIN_URL=http://192.168.1.59:9000 \
 Startup line should read `link=encrypted`. Say "Hey Nyx" and she answers through the
 kitchen speaker — voice over the wire is now ciphertext. (macOS `say` voice until you
 put piper on the Mini too.) Once it works, we make it boot-managed with a launchd job.
+
+---
+
+# Auto-start the room nodes (so she's "just there" on boot)
+
+The office/kitchen satellites run from a terminal by default — closing it or rebooting
+stops them. These launchd jobs make each room node start on login and stay up, no
+terminal. Audio still comes from each Mac's System Settings → Sound defaults.
+
+### Office (on the Studio)
+```bash
+# stop the manual office node first (Ctrl-C its terminal), then:
+chmod +x ~/sobriety_prediction_model/src/companion/deploy/nyx-office.sh
+cp ~/sobriety_prediction_model/src/companion/deploy/com.nyx.office.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nyx.office.plist
+launchctl list | grep nyx.office        # shows a PID
+tail -f ~/Library/Logs/nyx-office.log   # startup line, then "Hey Nyx"
+```
+
+### Kitchen (on the Mini)
+```bash
+cd ~/sobriety_prediction_model && git pull        # get the deploy files
+# stop the manual kitchen node first (Ctrl-C), then:
+chmod +x ~/sobriety_prediction_model/src/companion/deploy/nyx-kitchen.sh
+cp ~/sobriety_prediction_model/src/companion/deploy/com.nyx.kitchen.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nyx.kitchen.plist
+launchctl list | grep nyx.kitchen
+tail -f ~/Library/Logs/nyx-kitchen.log
+```
+
+Restart a node after a code change: `launchctl kickstart -k gui/$(id -u)/com.nyx.<office|kitchen>`.
+
+**macOS mic-permission gotcha:** the first time a launchd job opens the mic, macOS may
+silently deny it (no prompt in a background job). If a room stops hearing you after
+auto-start, open **System Settings → Privacy & Security → Microphone** and enable the
+entry for the python/terminal process. Granting it once sticks.

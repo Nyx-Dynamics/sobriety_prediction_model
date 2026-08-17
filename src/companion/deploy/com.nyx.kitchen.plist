@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mini launchd job: the KITCHEN room node. Auto-starts the satellite so she's
+     listening in the kitchen on boot, no terminal. Install to
+     ~/Library/LaunchAgents/com.nyx.kitchen.plist  (paths assume user acdmm4). -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.nyx.kitchen</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/acdmm4/sobriety_prediction_model/src/companion/deploy/nyx-kitchen.sh</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/acdmm4/Library/Logs/nyx-kitchen.log</string>
+  <key>StandardErrorPath</key><string>/Users/acdmm4/Library/Logs/nyx-kitchen.log</string>
+</dict>
+</plist>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Studio launchd job: the OFFICE room node. Auto-starts the satellite so she's
+     listening in the office on boot, no terminal. Install to
+     ~/Library/LaunchAgents/com.nyx.office.plist  (paths assume user acdstudpro). -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.nyx.office</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/acdstudpro/sobriety_prediction_model/src/companion/deploy/nyx-office.sh</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/acdstudpro/Library/Logs/nyx-office.log</string>
+  <key>StandardErrorPath</key><string>/Users/acdstudpro/Library/Logs/nyx-office.log</string>
+</dict>
+</plist>
