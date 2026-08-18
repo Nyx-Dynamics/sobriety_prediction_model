@@ -20,6 +20,9 @@ http://localhost:9100/presence. The brain queries it per turn (best-effort).
 Config (env):
   UNIFI_HOST, UNIFI_PORT(=443), UNIFI_USER, UNIFI_PASS   — Protect login
   OWNER_NAME               — the Protect-recognized name to treat as the owner
+  PRESENCE_ASSUME_OWNER    — 1/0; when no face identity is available, treat a detected
+                             person as the owner (default: ON if OWNER_NAME is unset).
+                             This is the private, no-face-training "solo home" mode.
   PRESENCE_ZONES_FILE      — JSON: {"<camera name or id>": "<room>", ...}
   PRESENCE_TTL_S(=90)      — how long a detection counts as "present"
   PRESENCE_PORT(=9100)
@@ -61,7 +64,10 @@ class PresenceStore:
         with self._lock:
             live = {z: v for z, v in self._zones.items() if now - v["ts"] < self.ttl_s}
             self._zones = live  # prune as we read
-            owner_zone = next((z for z, v in live.items() if v["owner"]), None)
+            # the FRESHEST owner detection wins the room — so walking kitchen->office
+            # updates to office immediately instead of lingering on the stale room.
+            owner_zones = [(z, v["ts"]) for z, v in live.items() if v["owner"]]
+            owner_zone = max(owner_zones, key=lambda zt: zt[1])[0] if owner_zones else None
             others = any(not v["owner"] for v in live.values())
             zones = {z: {"who": "owner" if v["owner"] else "someone",
                          "age_s": round(now - v["ts"], 1)} for z, v in live.items()}
@@ -88,10 +94,19 @@ class UniFiProtectSource:
     against live hardware — configure and we debug against your UDM Pro. If the
     SDK/config isn't present, `available` is False and it stays silent."""
 
-    def __init__(self, store: PresenceStore, zones: dict, owner_name: str):
+    def __init__(self, store: PresenceStore, zones: dict, owner_name: str,
+                 assume_owner: bool | None = None):
         self.store = store
         self.zones = {k.lower(): v for k, v in zones.items()}  # camera name/id -> room
         self.owner = (owner_name or "").strip().lower()
+        # Person-only mode: with no owner name (i.e. Protect face recognition isn't
+        # set up), a detected person is assumed to be the owner — so a solo home gets
+        # room awareness ("you're in the kitchen") without training any faces, which
+        # is also the more private choice. PRESENCE_ASSUME_OWNER=1/0 overrides.
+        if assume_owner is None:
+            env = os.environ.get("PRESENCE_ASSUME_OWNER")
+            assume_owner = (env == "1") if env is not None else (not self.owner)
+        self.assume_owner = assume_owner
         self.available = False
         self._client = None
 
@@ -109,20 +124,26 @@ class UniFiProtectSource:
         if not host:
             print("[presence] UNIFI_HOST unset — presence disabled.")
             return
-        self._client = ProtectApiClient(
-            host, int(os.environ.get("UNIFI_PORT", "443")),
-            os.environ["UNIFI_USER"], os.environ["UNIFI_PASS"],
-            verify_ssl=False,
-        )
-        await self._client.update()   # bootstrap
-        self.available = True
-        print(f"[presence] connected to Protect at {host}; watching "
-              f"{len(self.zones)} mapped cameras.")
-        self._client.subscribe_websocket(self._on_ws)
-        # keep the connection alive
         import asyncio
-        while True:
-            await asyncio.sleep(3600)
+        while True:   # reconnect on connect/bootstrap failure; presence just stays empty meanwhile
+            try:
+                self._client = ProtectApiClient(
+                    host, int(os.environ.get("UNIFI_PORT", "443")),
+                    os.environ["UNIFI_USER"], os.environ["UNIFI_PASS"],
+                    verify_ssl=False,
+                )
+                await self._client.update()   # bootstrap
+                self.available = True
+                print(f"[presence] connected to Protect at {host}; watching "
+                      f"{len(self.zones)} mapped cameras.")
+                self._client.subscribe_websocket(self._on_ws)
+                while True:
+                    await asyncio.sleep(3600)   # keep the connection alive
+            except Exception as e:
+                self.available = False
+                print(f"[presence] Protect connection error ({type(e).__name__}: {e}); "
+                      f"retrying in 30s.")
+                await asyncio.sleep(30)
 
     def _on_ws(self, msg):
         """Best-effort event handler. Protect's exact event shape varies by version;
@@ -146,7 +167,10 @@ class UniFiProtectSource:
                 if isinstance(v, str) and v:
                     ident = v
                     break
-            is_owner = bool(self.owner) and ident.strip().lower() == self.owner
+            if ident:                       # a recognized face -> match against the owner
+                is_owner = bool(self.owner) and ident.strip().lower() == self.owner
+            else:                           # anonymous person -> owner iff assume-owner mode
+                is_owner = self.assume_owner
             self.store.update(zone, is_owner, time.time())
         except Exception:
             pass  # never let a malformed event break the daemon
